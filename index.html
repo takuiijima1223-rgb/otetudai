@@ -1,1176 +1,769 @@
-
+<!DOCTYPE html>
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>就労支援管理システム - 個別支援計画君</title>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
+    <title>お手伝い＆お小遣い管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
-        
-        body {
-            font-family: 'Noto Sans JP', sans-serif;
-            background-color: #f1f5f9;
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .tab-btn.active { 
+            border-bottom: 2px solid #3b82f6; 
+            color: #3b82f6; 
+            font-weight: bold; 
+            background-color: #eff6ff;
         }
-
-        /* 印刷設定 */
-        @media print {
-            @page { size: landscape; margin: 5mm; }
-            body { 
-                background-color: white; 
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
-                width: 100%;
-            }
-            .no-print { display: none !important; }
-            .shadow-sm, .shadow-md, .shadow-lg { box-shadow: none !important; }
-            input, textarea, select { border: 1px solid #ccc !important; }
-            input:disabled, textarea:disabled { background-color: white !important; color: black !important; }
-            select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background: none !important; padding-right: 0 !important; }
-            .overflow-x-auto { overflow: visible !important; }
-            .min-w-full { min-width: 100% !important; }
-        }
-
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .tab-btn { color: #6b7280; transition: all 0.2s; }
         
-        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
-<body>
-    <div id="root"></div>
-    <div id="portal-root"></div>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
-        const { createPortal } = ReactDOM;
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+        <div class="loader mb-4"></div>
+        <p class="text-gray-600 font-medium">データを読み込み中...</p>
+    </div>
 
-        class ErrorBoundary extends React.Component {
-            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-            static getDerivedStateFromError(error) { return { hasError: true, error }; }
-            render() {
-                if (this.state.hasError) return (
-                    <div className="min-h-screen flex items-center justify-center bg-red-50 p-6">
-                        <div className="bg-white p-8 rounded shadow-lg border border-red-200 max-w-lg w-full text-center">
-                            <h1 className="text-xl font-bold text-red-600 mb-4">システムエラーが発生しました</h1>
-                            <p className="text-gray-600 mb-6 text-sm">{this.state.error && this.state.error.toString()}</p>
-                            <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700">データをリセットして復旧</button>
+    <div class="max-w-5xl mx-auto bg-white shadow-xl min-h-screen flex flex-col relative">
+        <!-- Header -->
+        <header class="bg-blue-500 text-white p-4 text-center shadow-md relative z-10">
+            <h1 class="text-xl font-bold"><i class="fas fa-piggy-bank mr-2"></i>お小遣い管理</h1>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <div class="flex border-b bg-white relative z-10 sticky top-0">
+            <button onclick="switchTab('record')" id="tab-record" class="tab-btn active flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
+                <i class="fas fa-pen"></i><span>記録</span>
+            </button>
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
+                <i class="fas fa-chart-pie"></i><span>グラフ</span>
+            </button>
+            <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
+                <i class="fas fa-cog"></i><span>設定</span>
+            </button>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 p-4 overflow-y-auto pb-20">
+
+            <!-- ================= TAB 1: 記録 ================= -->
+            <div id="content-record" class="tab-content active">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm h-fit">
+                        <h2 class="text-md font-bold mb-4 text-blue-600 border-b pb-2"><i class="fas fa-plus-circle mr-1"></i> 新しく記録する</h2>
+                        <form id="recordForm" class="space-y-4">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">日付</label>
+                                <input type="date" id="recordDate" class="w-full border rounded-lg p-2 bg-gray-50 focus:outline-blue-500" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">だれが？</label>
+                                <select id="recordMember" class="w-full border rounded-lg p-2 bg-gray-50 focus:outline-blue-500" required>
+                                    <option value="">メンバーを選択...</option>
+                                    <!-- JSで追加 -->
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">なにをした？</label>
+                                <select id="recordChore" class="w-full border rounded-lg p-2 bg-gray-50 focus:outline-blue-500" required>
+                                    <option value="">お手伝いを選択...</option>
+                                    <!-- JSで追加 -->
+                                </select>
+                            </div>
+                            <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow transition-colors">
+                                記録を追加
+                            </button>
+                        </form>
+                    </div>
+
+                    <div>
+                        <h2 class="text-md font-bold mb-3 text-gray-700">最近の記録</h2>
+                        <div id="recentRecordsList" class="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                            <!-- JSで追加 -->
+                            <p class="text-center text-gray-400 text-sm py-4">記録がありません</p>
                         </div>
                     </div>
-                );
-                return this.props.children;
+                </div>
+            </div>
+
+            <!-- ================= TAB 2: ダッシュボード ================= -->
+            <div id="content-dashboard" class="tab-content space-y-6">
+                <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border max-w-md mx-auto">
+                    <button onclick="changeMonth(-1)" class="p-2 text-gray-500 hover:text-blue-500"><i class="fas fa-chevron-left"></i></button>
+                    <h2 id="currentMonthDisplay" class="text-lg font-bold text-gray-800">2023年10月</h2>
+                    <button onclick="changeMonth(1)" class="p-2 text-gray-500 hover:text-blue-500"><i class="fas fa-chevron-right"></i></button>
+                </div>
+
+                <!-- メンバー別サマリー -->
+                <div id="summaryCards" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <!-- JSで追加 -->
+                </div>
+
+                <!-- グラフ -->
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-3 rounded-xl border shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-600 mb-2 text-center">お小遣い獲得額（円）</h3>
+                        <div class="relative h-48 w-full">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-3 rounded-xl border shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-600 mb-2 text-center">よくやったお手伝い（全体）</h3>
+                        <div class="relative h-48 w-full">
+                            <canvas id="pieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AIほめ言葉 -->
+                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-xl border border-yellow-200 shadow-sm mt-6">
+                    <h3 class="text-md font-bold text-yellow-700 mb-2"><i class="fas fa-sparkles mr-2"></i>AIからのほめ言葉 ✨</h3>
+                    <p class="text-sm text-gray-600 mb-3">今月のがんばりをAIが分析して、特別なメッセージを贈ります！モチベーションアップに！</p>
+                    <button onclick="generatePraise()" id="btnGeneratePraise" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 px-4 rounded shadow transition-colors text-sm">
+                        メッセージを生成する
+                    </button>
+                    <div id="praiseResult" class="mt-4 text-gray-800 font-medium whitespace-pre-wrap hidden p-4 bg-white rounded-lg border border-yellow-200 shadow-inner"></div>
+                </div>
+            </div>
+
+            <!-- ================= TAB 3: 設定 ================= -->
+            <div id="content-settings" class="tab-content">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- メンバー設定 -->
+                    <div>
+                        <h2 class="text-md font-bold mb-3 text-gray-700 flex items-center"><i class="fas fa-users mr-2 text-blue-500"></i>メンバー管理</h2>
+                        <form id="memberForm" class="flex gap-2 mb-4">
+                            <input type="text" id="newMemberName" placeholder="名前 (例: たろう)" class="flex-1 border rounded-lg p-2 bg-gray-50" required>
+                            <button type="submit" class="bg-blue-500 text-white px-4 rounded-lg font-bold"><i class="fas fa-plus"></i></button>
+                        </form>
+                        <div id="membersList" class="space-y-2">
+                            <!-- JSで追加 -->
+                        </div>
+                    </div>
+
+                    <!-- お手伝い設定 -->
+                    <div>
+                        <h2 class="text-md font-bold mb-3 text-gray-700 flex items-center"><i class="fas fa-broom mr-2 text-green-500"></i>お手伝いマスター</h2>
+                        <form id="choreForm" class="space-y-2 mb-4 bg-gray-50 p-3 rounded-lg border">
+                            <input type="text" id="newChoreName" placeholder="項目名 (例: お風呂掃除)" class="w-full border rounded-lg p-2" required>
+                            <div class="flex gap-2">
+                                <input type="number" id="newChorePrice" placeholder="単価 (円)" class="flex-1 border rounded-lg p-2" min="0" required>
+                                <button type="submit" class="bg-green-500 text-white px-4 rounded-lg font-bold whitespace-nowrap"><i class="fas fa-plus mr-1"></i>追加</button>
+                            </div>
+                        </form>
+
+                        <!-- AIアイデア提案 -->
+                        <div class="mb-4 bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-sm">
+                            <h3 class="text-sm font-bold text-purple-700 mb-2"><i class="fas fa-lightbulb mr-1"></i>AIにお手伝いのアイデアを相談 ✨</h3>
+                            <p class="text-xs text-purple-600 mb-2">年齢や季節などを入力すると、おすすめのお手伝いと単価を提案します。</p>
+                            <div class="flex gap-2 mb-2">
+                                <input type="text" id="aiIdeaContext" placeholder="例: 5歳くらい、夏休み" class="flex-1 text-sm border rounded-lg p-2 focus:outline-purple-500">
+                                <button onclick="generateIdeas()" id="btnGenerateIdeas" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow transition-colors text-sm whitespace-nowrap">
+                                    提案
+                                </button>
+                            </div>
+                            <div id="aiIdeasResult" class="space-y-2 hidden mt-3">
+                                <!-- JSで追加 -->
+                            </div>
+                        </div>
+
+                        <div id="choresList" class="space-y-2">
+                            <!-- JSで追加 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Firebase SDK (ES Modules) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // === アプリの状態 ===
+        let members = [];
+        let chores = [];
+        let records = [];
+        let viewMonth = new Date();
+        let barChartInstance = null;
+        let pieChartInstance = null;
+        const THEME_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+        // DOM要素
+        const recordDateInput = document.getElementById('recordDate');
+        recordDateInput.value = new Date().toISOString().split('T')[0];
+
+        // === タブ切り替え関数 ===
+        window.switchTab = function(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('content-' + tabId).classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+            
+            if(tabId === 'dashboard') {
+                renderDashboard();
             }
-        }
-
-        const Icon = React.memo(({ name, size = 18, className = "", onClick }) => {
-            const ref = useRef(null);
-            useEffect(() => {
-                if (ref.current && window.lucide) {
-                    ref.current.innerHTML = '';
-                    const i = document.createElement('i');
-                    i.setAttribute('data-lucide', name);
-                    ref.current.appendChild(i);
-                    try { window.lucide.createIcons({ root: ref.current, attrs: { width: size, height: size, class: className } }); } catch (e) {}
-                }
-            }, [name, size, className]);
-            return <span ref={ref} onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', minWidth: size, minHeight: size, cursor: onClick ? 'pointer' : 'inherit' }} />;
-        });
-
-        const ModalPortal = ({ children }) => { const el = document.getElementById('portal-root'); return el ? createPortal(children, el) : null; };
-
-        const checkDeadlineAlert = (targetDateStr, completedDateStr, label) => {
-            if (!targetDateStr || completedDateStr) return { isAlert: false, message: '', type: null };
-            const today = new Date(); today.setHours(0, 0, 0, 0);
-            const targetDate = new Date(targetDateStr);
-            if (isNaN(targetDate.getTime())) return { isAlert: false, message: '', type: null };
-            targetDate.setHours(0, 0, 0, 0);
-            const alertStartDate = new Date(targetDate); alertStartDate.setDate(targetDate.getDate() - 30);
-            if (today > targetDate) {
-                const diffDays = Math.floor((today - targetDate) / (1000 * 60 * 60 * 24));
-                return { isAlert: true, message: `${label}の期限を${diffDays}日過ぎています`, type: 'danger' };
-            } else if (today >= alertStartDate) {
-                const diffDays = Math.floor((targetDate - today) / (1000 * 60 * 60 * 24));
-                return { isAlert: true, message: `${label}まであと${diffDays}日です`, type: 'warning' };
-            }
-            return { isAlert: false, message: '', type: null };
         };
 
-        const formatDateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        const determineStatus = (user) => {
-            if (user.plan?.periodStart && user.plan?.periodEnd && user.plan?.approver) return "利用中";
-            const s = user.application?.schedule || {};
-            if (s.trial1 || s.trial2 || s.trial3) return "体験利用中";
-            if (user.application?.receptionDate && user.application?.applicantName) return "見学対応中";
-            return "未定"; 
+        // === 月切り替え関数 ===
+        window.changeMonth = function(delta) {
+            viewMonth.setMonth(viewMonth.getMonth() + delta);
+            renderDashboard();
         };
-        const calculateWorkHours = (timeStr) => {
-            if (!timeStr || !timeStr.includes('-')) return 0;
+
+        // === Firebaseの初期化 ===
+        let db, auth, currentAppId, publicDataPath;
+
+        const initFirebase = async () => {
             try {
-                const [s, e] = timeStr.split('-'); const [sH, sM] = s.split(':').map(Number); const [eH, eM] = e.split(':').map(Number);
-                let duration = (eH + (eM || 0)/60) - (sH + (sM || 0)/60);
-                if (duration < 0) duration += 24;
-                if (duration > 6) duration -= 1;
-                return Math.max(0, duration);
-            } catch (err) { return 0; }
-        };
+                // 環境変数のチェック (Canvas環境用)
+                if (typeof __firebase_config === 'undefined') {
+                    throw new Error("Firebase設定が見つかりません。");
+                }
 
-        const getInitialUserState = () => ({
-            id: null, name: "新規利用者", status: "未定", 
-            application: { applicantName: "", applicantNameKana: "", gender: "", dob: "", age: "", address: "", phone: "", email: "", disabilityType: [], disabilityName: "", disabilityGrade: "", hasExperience: "", todayQuestion: "", visitReason: [], futureGoal: "", desiredService: [], concerns: [], goals: [], isVisitingHospital: "", hospitalName: "", consultedDoctor: "", howDidYouKnow: [], schedule: { trial1: "", trial1Time: "", trial2: "", trial2Time: "", trial3: "", trial3Time: "", certificateDate: "", contractDate: "" } },
-            assessment: { createDate: "", writer: "", commuteMethod: "", emergencyContact: { name: "", relation: "", tel: "" }, certificates: { mental: { status: "", note: "" }, rehabilitation: { status: "", note: "" }, physical: { status: "", note: "" }, devDisability: { has: "", note: "" } }, financial: { pension: { has: "", note: "" }, welfare: { has: "", note: "" } }, medical: { hospital: "", diagnosis: "", medication: "", doctor: "", visitFrequency: "" }, workHistory: [], onsetAge: "", currentMentalState: "", triggers: "", coping: "", personality: "", upbringing: "", dailyLife: { wakeTime: "", sleepTime: "", commSkill: "", literacy: "", numeracy: "", strengths: "", challenges: "" }, familyStructure: [], checklist: { health: { physical: { score: 0, note: "" }, medication: { score: 0, note: "" }, diet: { score: 0, note: "" } }, daily: { rhythm: { score: 0, note: "" }, appearance: { score: 0, note: "" }, cleanliness: { score: 0, note: "" }, money: { score: 0, note: "" }, mobility: { score: 0, note: "" } }, social: { expression: { score: 0, note: "" }, communication: { score: 0, note: "" }, emotion: { score: 0, note: "" }, cooperation: { score: 0, note: "" } }, work: { understanding: { score: 0, note: "" }, intention: { score: 0, note: "" }, motivation: { score: 0, note: "" }, endurance: { score: 0, note: "" } } }, basicHabits: { greeting: { has: false }, reporting: { has: false }, attendance: { has: false } }, desiredSupport: { items: [], detail: "" }, overallOpinion: { desiredWork: "", readiness: "", futureTasks: "" } },
-            plan: { periodStart: "", periodEnd: "", monitoringDate: "", userDesire: "", familyDesire: "", needs: "", longTermGoal: "", shortTermGoal: "", supportContent: "", staff: "", approver: "", explainDate: "" },
-            monitoring: { date: "", interviewer: "", location: "", currentStatus: "", needs: "", anxiety: "", satisfaction: "", futureTasks: "", feedback: "" },
-            termination: { date: "", goals: [{ id: 1, target: "", achievement: "", overall: "", satisfaction: "", nextOpinion: "" }, { id: 2, target: "", achievement: "", overall: "", satisfaction: "", nextOpinion: "" }] },
-            dailyRecords: [], interviewRecords: [],
-            summaryInfo: { nextDayNotes: "" }
-        });
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        const mergeUserData = (loadedUser) => {
-            const init = getInitialUserState();
-            const mergedApp = { ...init.application, ...(loadedUser.application || {}), schedule: { ...init.application.schedule, ...((loadedUser.application && loadedUser.application.schedule) || {}) } };
-            const m = { 
-                ...init, ...loadedUser, 
-                application: mergedApp, 
-                assessment: { ...init.assessment, ...(loadedUser.assessment || {}) }, 
-                plan: { ...init.plan, ...(loadedUser.plan || {}) }, 
-                monitoring: { ...init.monitoring, ...(loadedUser.monitoring || {}) }, 
-                termination: { ...init.termination, ...(loadedUser.termination || {}) }, 
-                dailyRecords: loadedUser.dailyRecords || [], 
-                interviewRecords: loadedUser.interviewRecords || [],
-                summaryInfo: { ...(init.summaryInfo || {}), ...(loadedUser.summaryInfo || {}) }
-            };
-            m.status = determineStatus(m); return m;
-        };
-
-        const Card = ({ title, children, className = "" }) => (<div className={`bg-white rounded-lg shadow-sm border border-slate-200 mb-6 ${className}`}>{title && <div className="px-6 py-4 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-800">{title}</h3></div>}<div className="p-6">{children}</div></div>);
-        const InputGroup = ({ label, children, required }) => (<div className="mb-4"><label className="block text-sm font-medium text-slate-600 mb-1">{label} {required && <span className="text-red-500">*</span>}</label>{children}</div>);
-        const TextInput = ({ value, onChange, placeholder, type = "text", disabled, className = "", step }) => (<input type={type} step={step} className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${disabled ? "bg-slate-100 text-slate-500" : "bg-white border-slate-300"} ${className}`} value={value || ""} onChange={onChange} placeholder={placeholder} disabled={disabled} />);
-        const TextArea = ({ value, onChange, rows = 3, placeholder }) => (<textarea className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white border-slate-300" rows={rows} value={value || ""} onChange={onChange} placeholder={placeholder} />);
-        const StaffSelect = ({ value, onChange, options = [] }) => (
-            <div className="relative"><select className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none bg-white border-slate-300 pr-8" value={value || ""} onChange={onChange}><option value="">選択</option>{options.map(s => <option key={s.id} value={s.name}>{s.name} {s.role ? `(${s.role})` : ''}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><Icon name="chevron-down" size={16} /></div></div>
-        );
-        const Checkbox = ({ label, checked, onChange }) => (<label className="flex items-center space-x-2 mr-4 mb-2 cursor-pointer"><input type="checkbox" checked={checked} onChange={onChange} className="w-4 h-4 text-blue-600 rounded border-slate-300" /><span className="text-sm text-slate-700">{label}</span></label>);
-        const Radio = ({ label, name, value, checked, onChange }) => (<label className="flex items-center space-x-2 cursor-pointer mr-4"><input type="radio" name={name} value={value} checked={checked} onChange={onChange} className="w-4 h-4 text-blue-600 border-slate-300" /><span className="text-sm text-slate-700">{label}</span></label>);
-        const SectionHeader = ({ text }) => <h4 className="text-md font-bold text-slate-700 mt-6 mb-3 border-l-4 border-blue-500 pl-3">{text}</h4>;
-        const AutoFillDisplay = ({ label, value }) => (<div className="mb-4"><label className="block text-xs font-bold text-blue-600 mb-1 flex items-center">{label} <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-normal">自動反映</span></label><div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700 min-h-[38px] flex items-center">{value || "（未入力）"}</div></div>);
-        const AlertBanner = ({ alert, dateLabel, date }) => {
-            if (!alert || !alert.isAlert) return null;
-            return (<div className={`mb-4 p-4 rounded-md border flex items-start gap-3 shadow-sm ${alert.type === 'danger' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-yellow-50 border-yellow-200 text-yellow-800'}`}><Icon name="bell" className={`flex-shrink-0 ${alert.type === 'danger' ? 'text-red-500' : 'text-yellow-600'}`} /><div><div className="font-bold">期限の確認が必要です</div><div className="text-sm mt-1">{alert.message}（{dateLabel}: {date}）</div></div></div>);
-        };
-
-        // --- 職員情報・システム設定 ---
-        const SystemSettings = ({ staffs, setStaffs }) => {
-            const [name, setName] = useState(""); const [role, setRole] = useState("");
-            const [localApiKey, setLocalApiKey] = useState(localStorage.getItem("gemini_api_key") || "");
-            
-            const addStaff = () => { if (!name) return; setStaffs([...staffs, { id: Date.now(), name, role }]); setName(""); setRole(""); };
-            const deleteStaff = (id) => setStaffs(staffs.filter(s => s.id !== id));
-            
-            const saveApiKey = () => {
-                localStorage.setItem("gemini_api_key", localApiKey);
-                alert("APIキーを保存しました。\nこれでローカル環境でもAI機能が利用可能になります。");
-            };
-
-            return (
-                <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
-                    <h1 className="text-2xl font-bold mb-6 text-slate-800">設定・職員情報</h1>
-                    
-                    <Card title="システム設定（AI機能用）" className="border-l-4 border-l-purple-500">
-                        <div className="mb-4 text-sm text-slate-600 bg-purple-50 p-3 rounded border border-purple-100">
-                            ご自身のパソコンにファイルを保存して利用する場合は、AI機能を使うために <strong>Gemini APIキー</strong> が必要です。<br/>
-                            Google AI Studio等で取得したAPIキーを入力して保存してください。（CanvasのPreview画面を利用する場合は設定不要です）
-                        </div>
-                        <div className="flex gap-4 items-end">
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-slate-600 mb-1">Gemini API キー</label>
-                                <input type="password" value={localApiKey} onChange={e=>setLocalApiKey(e.target.value)} placeholder="AIzaSy..." className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white border-slate-300" />
-                            </div>
-                            <div className="">
-                                <button onClick={saveApiKey} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow transition-colors">保存</button>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card title="職員の新規追加">
-                        <div className="flex gap-4 mb-4">
-                            <InputGroup label="氏名"><TextInput value={name} onChange={e=>setName(e.target.value)} placeholder="例: 山田 太郎" /></InputGroup>
-                            <InputGroup label="役職"><TextInput value={role} onChange={e=>setRole(e.target.value)} placeholder="例: サビ管、生活支援員" /></InputGroup>
-                        </div>
-                        <button onClick={addStaff} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow transition-colors">追加</button>
-                    </Card>
-                    <Card title="職員一覧">
-                        <table className="min-w-full divide-y divide-slate-200 text-sm border border-slate-200 rounded-lg overflow-hidden">
-                            <thead className="bg-slate-50"><tr><th className="px-4 py-3 text-left font-bold text-slate-600">氏名</th><th className="px-4 py-3 text-left font-bold text-slate-600">役職</th><th className="px-4 py-3 text-right font-bold text-slate-600">操作</th></tr></thead>
-                            <tbody className="divide-y divide-slate-200 bg-white">
-                                {staffs.map(s => (
-                                    <tr key={s.id} className="hover:bg-slate-50"><td className="px-4 py-3 font-medium text-slate-800">{s.name}</td><td className="px-4 py-3 text-slate-600">{s.role}</td><td className="px-4 py-3 text-right"><button onClick={()=>deleteStaff(s.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors"><Icon name="trash-2" size={16}/></button></td></tr>
-                                ))}
-                                {staffs.length === 0 && <tr><td colSpan="3" className="px-4 py-8 text-center text-slate-400">職員が登録されていません</td></tr>}
-                            </tbody>
-                        </table>
-                    </Card>
-                </div>
-            );
-        };
-
-        // --- 作業一覧管理 ---
-        const TaskManagement = ({ tasks, setTasks }) => {
-            const [form, setForm] = useState({ name: '', level: '1', deadline: '', description: '' });
-            const addTask = () => { if (!form.name) return; setTasks([...tasks, { id: Date.now(), ...form }]); setForm({ name: '', level: '1', deadline: '', description: '' }); };
-            const deleteTask = (id) => setTasks(tasks.filter(t => t.id !== id));
-            return (
-                <div className="max-w-5xl mx-auto animate-fade-in">
-                    <h1 className="text-2xl font-bold mb-6 text-slate-800">作業一覧</h1>
-                    <Card title="新規作業追加">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <InputGroup label="作業名"><TextInput value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="例: 箱折り" /></InputGroup>
-                            <InputGroup label="難易度"><select className="w-full border border-slate-300 p-2 rounded-md bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={form.level} onChange={e=>setForm({...form, level: e.target.value})}><option value="1">1. 易しい</option><option value="2">2. 普通</option><option value="3">3. 難しい</option></select></InputGroup>
-                            <InputGroup label="目安納期"><TextInput value={form.deadline} onChange={e=>setForm({...form, deadline: e.target.value})} placeholder="例: 1週間" /></InputGroup>
-                            <InputGroup label="説明"><TextInput value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="作業の簡単な説明" /></InputGroup>
-                        </div>
-                        <button onClick={addTask} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow transition-colors">追加</button>
-                    </Card>
-                    <Card title="作業リスト">
-                        <table className="min-w-full divide-y divide-slate-200 text-sm border border-slate-200">
-                            <thead className="bg-slate-50"><tr><th className="px-4 py-3 text-left font-bold text-slate-600">作業名</th><th className="px-4 py-3 text-left font-bold text-slate-600 w-24">難易度</th><th className="px-4 py-3 text-left font-bold text-slate-600 w-32">納期</th><th className="px-4 py-3 text-left font-bold text-slate-600">説明</th><th className="px-4 py-3 font-bold text-slate-600 w-16 text-right">操作</th></tr></thead>
-                            <tbody className="divide-y divide-slate-200 bg-white">
-                                {tasks.map(t => (
-                                    <tr key={t.id} className="hover:bg-slate-50"><td className="px-4 py-3 font-medium text-slate-800">{t.name}</td><td className="px-4 py-3"><span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded text-xs font-bold">Level {t.level}</span></td><td className="px-4 py-3 text-slate-600">{t.deadline}</td><td className="px-4 py-3 text-slate-600">{t.description}</td><td className="px-4 py-3 text-right"><button onClick={()=>deleteTask(t.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors"><Icon name="trash-2" size={16}/></button></td></tr>
-                                ))}
-                                {tasks.length === 0 && <tr><td colSpan="5" className="px-4 py-8 text-center text-slate-400">作業が登録されていません</td></tr>}
-                            </tbody>
-                        </table>
-                    </Card>
-                </div>
-            );
-        };
-
-        // --- 利用者シフト管理 ---
-        const UserShiftManagement = ({ users, userShifts, onShiftChange }) => {
-            const [currentWeek, setCurrentWeek] = useState(new Date());
-            const days = Array.from({length: 7}, (_, i) => { const d = new Date(currentWeek); d.setDate(d.getDate() - d.getDay() + i + 1); return d; });
-            return (
-                <div className="animate-fade-in p-2 max-w-7xl mx-auto">
-                    <div className="flex justify-between items-center mb-6 no-print">
-                        <h1 className="text-2xl font-bold text-slate-800">利用者シフト</h1>
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => window.print()} className="px-4 py-2 border border-slate-300 rounded bg-white flex items-center gap-2 hover:bg-slate-50 transition-colors"><Icon name="printer" size={16}/>印刷</button>
-                            <div className="flex items-center gap-2 bg-white rounded shadow-sm border border-slate-200 p-1">
-                                <button onClick={() => {const d = new Date(currentWeek); d.setDate(d.getDate()-7); setCurrentWeek(d);}} className="p-1 hover:bg-slate-100 rounded text-slate-600"><Icon name="chevron-left" /></button>
-                                <span className="font-bold px-2 text-slate-700">{days[0].getFullYear()}年 {days[0].getMonth()+1}月</span>
-                                <button onClick={() => {const d = new Date(currentWeek); d.setDate(d.getDate()+7); setCurrentWeek(d);}} className="p-1 hover:bg-slate-100 rounded text-slate-600"><Icon name="chevron-right" /></button>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
-                        <table className="divide-y divide-slate-200 table-fixed w-full min-w-[800px]">
-                            <thead className="bg-slate-50">
-                                <tr>
-                                    <th className="w-36 px-4 py-3 text-left font-bold text-slate-600 sticky left-0 bg-slate-50 z-10 border-r text-sm">利用者名</th>
-                                    {days.map(d => <th key={d} className={`px-2 py-3 text-center text-xs font-bold border-r ${d.getDay()===0?'text-red-600 bg-red-50/50':d.getDay()===6?'text-blue-600 bg-blue-50/50':'text-slate-600'}`}>{d.getMonth()+1}/{d.getDate()}<br/>({['日','月','火','水','木','金','土'][d.getDay()]})</th>)}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {users.map(u => (
-                                    <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-sm text-slate-800 sticky left-0 bg-white border-r z-10 truncate shadow-[2px_0_5px_rgba(0,0,0,0.02)]" title={u.name}>{u.name}</td>
-                                        {days.map(d => {
-                                            const dk = formatDateKey(d);
-                                            const shift = (userShifts[dk] && userShifts[dk][u.id]) || { checked: false, time: '10:00-15:00' };
-                                            return (
-                                                <td key={dk} className={`p-2 border-r text-center align-middle ${shift.checked ? 'bg-blue-50/30' : ''}`}>
-                                                    <div className="flex flex-col items-center justify-center gap-1.5 h-full min-h-[44px]">
-                                                        <input type="checkbox" className="w-4 h-4 cursor-pointer text-blue-600 border-slate-300 rounded focus:ring-blue-500" checked={shift.checked} onChange={e => onShiftChange(d, u.id, 'checked', e.target.checked)} />
-                                                        {shift.checked && <input type="text" className="w-16 text-[10px] text-center border border-blue-200 bg-white rounded px-1 py-0.5 text-blue-800 font-medium" value={shift.time} onChange={e => onShiftChange(d, u.id, 'time', e.target.value)} />}
-                                                    </div>
-                                                </td>
-                                            )
-                                        })}
-                                    </tr>
-                                ))}
-                                {users.length === 0 && <tr><td colSpan="8" className="px-4 py-8 text-center text-slate-400">利用者が登録されていません</td></tr>}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- 職員配置シミュレーション ---
-        const StaffShiftManagement = ({ staffs, users, userShifts, staffShifts, onShiftChange }) => {
-            const [targetDate, setTargetDate] = useState(formatDateKey(new Date()));
-            const dk = targetDate;
-            const attendingUsers = users.filter(u => userShifts[dk] && userShifts[dk][u.id] && userShifts[dk][u.id].checked);
-            const attendingStaffs = staffs.filter(s => staffShifts[dk] && staffShifts[dk][s.id] && staffShifts[dk][s.id].checked);
-            const ratio = attendingStaffs.length > 0 ? (attendingUsers.length / attendingStaffs.length).toFixed(1) : '-';
-            const isAlert = attendingStaffs.length > 0 && attendingUsers.length / attendingStaffs.length > 7.5; 
-
-            return (
-                <div className="max-w-5xl mx-auto animate-fade-in">
-                    <h1 className="text-2xl font-bold mb-6 text-slate-800">職員配置シミュレーション</h1>
-                    <div className="mb-6 flex items-center gap-4 bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                        <label className="font-bold text-slate-700 flex items-center"><Icon name="calendar" className="mr-2 text-blue-500"/>対象日を選択：</label>
-                        <input type="date" className="border-2 border-slate-200 p-2 rounded outline-none focus:border-blue-500 font-bold text-slate-700" value={targetDate} onChange={e=>setTargetDate(e.target.value)} />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <Card className="text-center !bg-blue-50 border-blue-200 !shadow">
-                            <h3 className="text-sm font-bold text-blue-800 mb-2">出勤予定 利用者</h3>
-                            <div className="flex justify-center items-end gap-1"><span className="text-5xl font-bold text-blue-600">{attendingUsers.length}</span><span className="text-slate-500 pb-1 font-medium">名</span></div>
-                        </Card>
-                        <Card className="text-center !bg-green-50 border-green-200 !shadow">
-                            <h3 className="text-sm font-bold text-green-800 mb-2">出勤予定 職員</h3>
-                            <div className="flex justify-center items-end gap-1"><span className="text-5xl font-bold text-green-600">{attendingStaffs.length}</span><span className="text-slate-500 pb-1 font-medium">名</span></div>
-                        </Card>
-                        <Card className={`text-center !shadow ${isAlert ? '!bg-red-50 border-red-300' : '!bg-orange-50 border-orange-200'}`}>
-                            <h3 className={`text-sm font-bold mb-2 ${isAlert ? 'text-red-800' : 'text-orange-800'}`}>職員1人あたりの利用者</h3>
-                            <div className="flex justify-center items-end gap-1"><span className={`text-5xl font-bold ${isAlert ? 'text-red-600' : 'text-orange-600'}`}>{ratio}</span><span className="text-slate-500 pb-1 font-medium">名</span></div>
-                            {isAlert && <p className="text-xs text-red-600 mt-2 font-bold animate-pulse">配置基準を超過する可能性があります</p>}
-                        </Card>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card title="本日の職員シフト">
-                            <div className="space-y-3">
-                                {staffs.map(s => {
-                                    const shift = (staffShifts[dk] && staffShifts[dk][s.id]) || { checked: false, time: '' };
-                                    const isAttending = !!shift.time;
-                                    return (
-                                        <div key={s.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isAttending ? 'bg-blue-50/50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
-                                            <div>
-                                                <div className="font-bold text-slate-800">{s.name}</div>
-                                                <div className="text-xs text-slate-500 mt-0.5">{s.role}</div>
-                                            </div>
-                                            <select className={`border p-2 rounded text-sm font-bold outline-none cursor-pointer shadow-sm ${isAttending ? 'bg-white border-blue-300 text-blue-700' : 'bg-white text-slate-400'}`} value={shift.time || ''} onChange={e => onShiftChange(new Date(targetDate), s.id, e.target.value)}>
-                                                <option value="">休（未設定）</option><option value="09:00-18:00">09:00-18:00</option><option value="09:00-13:00">09:00-13:00</option><option value="13:00-18:00">13:00-18:00</option><option value="10:00-16:00">10:00-16:00</option>
-                                            </select>
-                                        </div>
-                                    );
-                                })}
-                                {staffs.length === 0 && <div className="text-center text-slate-400 py-4 text-sm">職員が登録されていません</div>}
-                            </div>
-                        </Card>
-                        <Card title="本日の出勤利用者">
-                            {attendingUsers.length > 0 ? (
-                                <div className="flex flex-wrap gap-2">
-                                    {attendingUsers.map(u => (
-                                        <span key={u.id} className="bg-white border border-slate-300 px-3 py-1.5 rounded-full text-sm font-medium text-slate-700 flex items-center gap-2 shadow-sm">
-                                            <Icon name="user" size={14} className="text-blue-500"/>{u.name}
-                                        </span>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center text-slate-400 py-8 text-sm bg-slate-50 rounded-lg border border-dashed border-slate-200">出勤予定の利用者はいません</div>
-                            )}
-                        </Card>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- 座席配置 ---
-        const SeatManagement = ({ users, staffs, userShifts, staffShifts }) => {
-            const [targetDate, setTargetDate] = useState(formatDateKey(new Date()));
-            const dk = targetDate;
-            const [seats, setSeats] = useState(Array(12).fill(""));
-            
-            const attendingUsers = users.filter(u => userShifts[dk] && userShifts[dk][u.id] && userShifts[dk][u.id].checked);
-            const assignSeat = (index, val) => { const newSeats = [...seats]; newSeats[index] = val; setSeats(newSeats); };
-
-            return (
-                <div className="max-w-6xl mx-auto animate-fade-in">
-                    <div className="flex justify-between items-center mb-6 no-print">
-                        <h1 className="text-2xl font-bold text-slate-800">座席配置</h1>
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => window.print()} className="px-4 py-2 border rounded bg-white flex items-center gap-2 shadow-sm hover:bg-slate-50"><Icon name="printer" size={16}/>印刷</button>
-                            <input type="date" className="border border-slate-300 p-2 rounded outline-none font-bold text-slate-700 shadow-sm" value={targetDate} onChange={e=>setTargetDate(e.target.value)} />
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white p-6 rounded-lg shadow border border-slate-200">
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-lg mb-6 border border-slate-100">
-                            {seats.map((seatVal, i) => {
-                                const selectedUser = attendingUsers.find(u => u.id.toString() === seatVal);
-                                return (
-                                    <div key={i} className={`p-4 rounded-xl shadow-sm border-2 relative h-32 flex flex-col justify-between transition-all ${selectedUser ? 'bg-white border-blue-400' : 'bg-white border-dashed border-slate-300'}`}>
-                                        <div className="text-xs font-bold text-slate-400">デスク {i+1}</div>
-                                        <select className="w-full border-b-2 border-slate-200 bg-transparent py-1 font-bold text-slate-800 outline-none text-center appearance-none cursor-pointer" value={seatVal} onChange={e => assignSeat(i, e.target.value)}>
-                                            <option value="">(空席)</option>
-                                            {attendingUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                        </select>
-                                        <div className="absolute right-3 top-3 text-slate-300 pointer-events-none"><Icon name="monitor" size={20} className={selectedUser ? 'text-blue-200' : ''}/></div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                        <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg">
-                            <h4 className="font-bold text-blue-800 mb-3 text-sm flex items-center gap-1"><Icon name="users" size={16}/> 未配置の出勤利用者</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {attendingUsers.map(u => {
-                                    const isAssigned = seats.includes(u.id.toString());
-                                    return (
-                                        <span key={u.id} className={`px-3 py-1.5 rounded-full text-sm transition-all ${isAssigned ? 'opacity-40 bg-slate-200 text-slate-500 line-through' : 'bg-white border border-blue-300 shadow-sm font-bold text-blue-700'}`}>{u.name}</span>
-                                    )
-                                })}
-                                {attendingUsers.length === 0 && <span className="text-slate-500 text-sm">本日の出勤予定者はいません</span>}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- 1日のスケジュール管理 ---
-        const StaffScheduleManager = ({ staffs, events, onAddEvent, onUpdateEvent, onDeleteEvent }) => {
-            const [currentDate, setCurrentDate] = useState(new Date());
-            const [isModalOpen, setIsModalOpen] = useState(false);
-            const [editingEvent, setEditingEvent] = useState(null);
-            const [eventForm, setEventForm] = useState({ staffId: '', startTime: '09:00', endTime: '10:00', title: '' });
-
-            const hours = Array.from({length: 10}, (_, i) => i + 9); 
-            const dateKey = formatDateKey(currentDate);
-
-            const handleOpenModal = (event = null, staffId = '') => {
-                if (event) {
-                    setEditingEvent(event);
-                    setEventForm({ staffId: event.staffId, startTime: event.startTime, endTime: event.endTime, title: event.title });
+                // 認証処理
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                    setEditingEvent(null);
-                    setEventForm({ staffId: staffId || (staffs.length > 0 ? staffs[0].id : ''), startTime: '09:00', endTime: '10:00', title: '' });
+                    await signInAnonymously(auth);
                 }
-                setIsModalOpen(true);
-            };
 
-            const handleSaveEvent = () => {
-                if (!eventForm.title || !eventForm.staffId) return alert('スタッフとタイトルを入力してください。');
-                if (eventForm.startTime >= eventForm.endTime) return alert('終了時間は開始時間より後に設定してください。');
-                
-                if (editingEvent) {
-                    onUpdateEvent({ ...editingEvent, ...eventForm });
-                } else {
-                    onAddEvent({ id: Date.now().toString(), date: dateKey, ...eventForm });
-                }
-                setIsModalOpen(false);
-            };
-
-            const handleDelete = () => {
-                if (editingEvent) {
-                    onDeleteEvent(editingEvent.id);
-                    setIsModalOpen(false);
-                }
-            };
-
-            const getEventStyle = (startTime, endTime) => {
-                if(!startTime || !endTime) return { display: 'none' };
-                let [sH, sM] = startTime.split(':').map(Number);
-                let [eH, eM] = endTime.split(':').map(Number);
-                
-                let startOffset = (sH - 9) + (sM / 60);
-                let endOffset = (eH - 9) + (eM / 60);
-
-                if (startOffset < 0) startOffset = 0;
-                if (endOffset > 10) endOffset = 10;
-                if (startOffset >= 10 || endOffset <= 0 || startOffset >= endOffset) return { display: 'none' };
-
-                const left = (startOffset / 10) * 100;
-                const width = ((endOffset - startOffset) / 10) * 100;
-                
-                return {
-                    left: `${left}%`,
-                    width: `${width}%`,
-                };
-            };
-
-            return (
-                <div className="animate-fade-in h-full flex flex-col max-w-7xl mx-auto relative">
-                    <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-bold text-slate-800">1日のスケジュール</h1>
-                        <div className="flex items-center gap-4">
-                            <input type="date" className="border border-slate-300 shadow-sm p-2 rounded outline-none font-bold text-slate-700" value={dateKey} onChange={e=>setCurrentDate(new Date(e.target.value))} />
-                            <button className="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded flex items-center gap-2 shadow" onClick={() => handleOpenModal()}><Icon name="plus" size={16}/>予定追加</button>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg shadow border border-slate-200 overflow-x-auto relative min-h-[500px]">
-                        <table className="min-w-full table-fixed border-collapse" style={{minWidth: '900px'}}>
-                            <thead className="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th className="w-32 border-r border-slate-200 bg-slate-50 p-3 text-left font-bold text-slate-600 sticky left-0 z-20 shadow-[1px_0_0_#e2e8f0]">スタッフ</th>
-                                    {hours.map(h => <th key={h} className="border-r border-slate-200 p-2 text-center text-sm font-bold text-slate-500">{h}:00</th>)}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {staffs.map(s => {
-                                    const staffEvents = events.filter(e => e.date === dateKey && e.staffId == s.id);
-                                    return (
-                                        <tr key={s.id} className="h-20 hover:bg-slate-50 group">
-                                            <td className="border-r border-slate-200 bg-white group-hover:bg-slate-50 p-3 font-medium text-sm sticky left-0 z-10 shadow-[1px_0_0_#e2e8f0]">
-                                                <div className="truncate text-slate-800 font-bold">{s.name}</div>
-                                                <div className="text-xs text-slate-500 font-normal mt-0.5">{s.role}</div>
-                                            </td>
-                                            <td colSpan={hours.length} className="relative p-0 cursor-pointer" onDoubleClick={() => handleOpenModal(null, s.id)}>
-                                                {hours.map(h => <div key={h} className="absolute top-0 bottom-0 border-r border-slate-100 border-dashed pointer-events-none" style={{left: `${((h-9)/10)*100}%`, width:`10%`}}></div>)}
-                                                {staffEvents.map(event => (
-                                                    <div 
-                                                        key={event.id}
-                                                        onClick={(e) => { e.stopPropagation(); handleOpenModal(event); }}
-                                                        className="absolute top-2 bottom-2 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded border border-blue-700 shadow-sm cursor-pointer overflow-hidden z-10 transition-colors flex flex-col justify-center px-2"
-                                                        style={getEventStyle(event.startTime, event.endTime)}
-                                                    >
-                                                        <div className="font-bold truncate">{event.title}</div>
-                                                        <div className="opacity-90 text-[10px] truncate mt-0.5">{event.startTime} - {event.endTime}</div>
-                                                    </div>
-                                                ))}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {staffs.length === 0 && <tr><td colSpan={hours.length+1} className="p-8 text-center text-slate-400">職員が登録されていません</td></tr>}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* モーダル */}
-                    {isModalOpen && (
-                        <ModalPortal>
-                            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[1000] animate-fade-in">
-                                <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
-                                    <h3 className="text-xl font-bold text-slate-800 mb-4">{editingEvent ? '予定の編集' : '予定の追加'}</h3>
-                                    <div className="space-y-4 mb-6">
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-1">スタッフ</label>
-                                            <select className="w-full border border-slate-300 p-2 rounded outline-none focus:border-blue-500 text-sm" value={eventForm.staffId} onChange={e=>setEventForm({...eventForm, staffId: e.target.value})}>
-                                                <option value="">選択してください</option>
-                                                {staffs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-1">タイトル</label>
-                                            <input type="text" className="w-full border border-slate-300 p-2 rounded outline-none focus:border-blue-500 text-sm" value={eventForm.title} onChange={e=>setEventForm({...eventForm, title: e.target.value})} placeholder="例：全体ミーティング" />
-                                        </div>
-                                        <div className="flex gap-4">
-                                            <div className="flex-1">
-                                                <label className="block text-sm font-bold text-slate-700 mb-1">開始時間</label>
-                                                <input type="time" className="w-full border border-slate-300 p-2 rounded outline-none focus:border-blue-500 text-sm" value={eventForm.startTime} onChange={e=>setEventForm({...eventForm, startTime: e.target.value})} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <label className="block text-sm font-bold text-slate-700 mb-1">終了時間</label>
-                                                <input type="time" className="w-full border border-slate-300 p-2 rounded outline-none focus:border-blue-500 text-sm" value={eventForm.endTime} onChange={e=>setEventForm({...eventForm, endTime: e.target.value})} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        {editingEvent ? (
-                                            <button onClick={handleDelete} className="text-red-500 hover:bg-red-50 px-3 py-2 rounded font-bold transition-colors flex items-center gap-1"><Icon name="trash-2" size={16}/> 削除</button>
-                                        ) : <div></div>}
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-slate-300 font-bold text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-sm">キャンセル</button>
-                                            <button onClick={handleSaveEvent} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm">保存</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </ModalPortal>
-                    )}
-                </div>
-            );
-        };
-
-
-        // --- 要約情報ビュー (アップデート版) ---
-        const SummaryView = ({ user, onChange }) => {
-            const { application, assessment, plan, monitoring, termination, dailyRecords = [], interviewRecords = [] } = user;
-            const monitoringAlert = checkDeadlineAlert(plan?.monitoringDate, monitoring?.date, "モニタリング");
-            const terminationAlert = checkDeadlineAlert(plan?.periodEnd, termination?.date, "終了評価");
-            
-            const [isGenerating, setIsGenerating] = useState(false);
-
-            // 直近の記録を抽出
-            const recentDaily = [...dailyRecords].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0, 3);
-            const recentInterviews = [...interviewRecords].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0, 2);
-
-            const InfoItem = ({ label, value, important = false }) => (<div className="mb-3"><div className={`text-xs font-bold mb-1 ${important ? 'text-red-600' : 'text-slate-500'}`}>{label} {important && <span className="text-xs bg-red-100 text-red-600 px-1 rounded ml-1">重要</span>}</div><div className={`text-sm ${value ? 'text-slate-800' : 'text-slate-400 italic'}`}>{value || "（情報なし）"}</div></div>);
-
-            const handleGenerateNotes = async () => {
-                if (recentDaily.length === 0) {
-                    alert("要約の元になる「日々の支援記録」がありません。");
-                    return;
-                }
-                setIsGenerating(true);
-                const apiKey = "";
-                const activeApiKey = localStorage.getItem("gemini_api_key") || apiKey;
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeApiKey}`;
-                
-                const recordsText = recentDaily.map(r => `[${r.date}] 体調:${r.condition} 内容:${r.content}`).join('\n');
-                const userQuery = `以下の利用者の「日々の支援記録（直近）」から、翌日以降の支援担当者に向けた「重要な連絡事項」と「引き継ぎ内容」を要約して、箇条書きで分かりやすく抽出してください。\n\n【支援記録】\n${recordsText}`;
-                
-                const payload = {
-                    contents: [{ parts: [{ text: userQuery }] }],
-                    systemInstruction: { parts: [{ text: "あなたは障害福祉施設の経験豊富なサービス管理責任者です。簡潔で的確な引き継ぎ事項を作成します。" }] }
-                };
-
-                let retries = 5; let delay = 1000; let generatedText = "";
-                while (retries > 0) {
-                    try {
-                        const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-                        const result = await response.json();
-                        if (result.error) throw new Error(result.error.message);
-                        generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                        break;
-                    } catch (e) {
-                        retries--;
-                        if (retries === 0) { alert("AIの生成に失敗しました。\nローカル環境の場合は「設定・職員情報」からAPIキーを設定してください。"); } 
-                        else { await new Promise(r => setTimeout(r, delay)); delay *= 2; }
-                    }
-                }
-                
-                if (generatedText) {
-                    onChange({ summaryInfo: { ...user.summaryInfo, nextDayNotes: generatedText.trim() } });
-                }
-                setIsGenerating(false);
-            };
-
-            return (
-                <div className="animate-fade-in">
-                    {monitoringAlert.isAlert && <AlertBanner alert={monitoringAlert} dateLabel="予定日" date={plan.monitoringDate} />}
-                    {terminationAlert.isAlert && <AlertBanner alert={terminationAlert} dateLabel="計画終了日" date={plan.periodEnd} />}
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                        {/* 左カラム */}
-                        <div className="space-y-6">
-                            <Card title="基本情報・緊急連絡先" className="border-l-4 border-l-blue-500">
-                                <div className="flex justify-between items-start mb-4"><div><h2 className="text-2xl font-bold text-slate-800">{application.applicantName} <span className="text-sm font-normal text-slate-500">({application.applicantNameKana})</span></h2><div className="flex gap-2 mt-1"><span className="text-sm bg-slate-100 px-2 py-0.5 rounded text-slate-600">{application.gender}</span><span className="text-sm bg-slate-100 px-2 py-0.5 rounded text-slate-600">{application.age}歳</span>{(application.disabilityType || []).map(t => (<span key={t} className="text-sm bg-blue-100 px-2 py-0.5 rounded text-blue-700">{t}</span>))}</div></div><div className="text-right"><div className="text-sm font-bold text-slate-500">障害等級</div><div className="text-lg">{application.disabilityGrade || "-"}</div></div></div>
-                                <div className="grid grid-cols-2 gap-4 bg-red-50 p-4 rounded-md border border-red-100 mb-4"><div><div className="text-xs font-bold text-red-700 mb-1">緊急連絡先</div><div className="font-bold text-slate-800">{assessment.emergencyContact.name} <span className="text-sm font-normal">({assessment.emergencyContact.relation})</span></div><div className="text-slate-700">{assessment.emergencyContact.tel}</div></div><div><div className="text-xs font-bold text-red-700 mb-1">診断名・病名</div><div className="font-bold text-slate-800">{assessment.medical.diagnosis || application.disabilityName || "（未記入）"}</div></div></div>
-                                <InfoItem label="通院先・主治医" value={`${assessment.medical.hospital} / ${assessment.medical.doctor}`} /><InfoItem label="服薬状況・管理" value={assessment.medical.medication} />
-                            </Card>
-                            
-                            <Card title="特性・配慮事項 (Attention)" className="border-l-4 border-l-orange-400">
-                                <InfoItem label="調子を崩す前兆（サイン）" value={assessment.triggers} important />
-                                <InfoItem label="調子を崩した時の対処法" value={assessment.coping} important />
-                                <div className="my-4 border-t border-slate-100"></div>
-                                <InfoItem label="得意なこと・強み" value={assessment.dailyLife.strengths || assessment.workHistory.map(w => w.content).join(", ")} />
-                                <InfoItem label="苦手なこと・課題" value={assessment.dailyLife.challenges} />
-                                <InfoItem label="コミュニケーションの特性" value={assessment.dailyLife.commSkill} />
-                            </Card>
-
-                            <Card title="直近の面談記録 (抜粋)" className="border-l-4 border-l-pink-400">
-                                {recentInterviews.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {recentInterviews.map(r => (
-                                            <div key={r.id} className="text-sm border-b pb-3 last:border-0 last:pb-0">
-                                                <div className="font-bold text-slate-700 flex items-center gap-2 mb-1">
-                                                    <Icon name="calendar-days" size={14} className="text-slate-400"/> {r.date} 
-                                                    <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded">対応: {r.interviewer}</span>
-                                                </div>
-                                                <div className="text-slate-600 line-clamp-3 pl-5 border-l-2 border-slate-200">{r.content}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-sm text-slate-400 py-2 text-center border border-dashed rounded bg-slate-50">面談記録がありません</div>
-                                )}
-                            </Card>
-                        </div>
-
-                        {/* 右カラム */}
-                        <div className="space-y-6">
-                            <Card title="翌日の連絡事項・引き継ぎ" className="border-l-4 border-l-red-500 bg-red-50/30">
-                                <div className="mb-3">
-                                    <button onClick={handleGenerateNotes} disabled={isGenerating} className="bg-purple-600 text-white text-xs px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 disabled:opacity-50 transition-colors shadow-sm font-bold w-full justify-center">
-                                        <Icon name="sparkles" size={16} />
-                                        {isGenerating ? "AIが引き継ぎ事項を抽出中..." : "日々の記録からAIで連絡事項を作成"}
-                                    </button>
-                                </div>
-                                <TextArea 
-                                    rows={5} 
-                                    value={user.summaryInfo?.nextDayNotes || ""} 
-                                    onChange={e => onChange({ summaryInfo: { ...user.summaryInfo, nextDayNotes: e.target.value } })} 
-                                    placeholder="明日の支援で気をつけるべきこと、引き継ぎ事項などを入力してください。（上のボタンからAIでの自動生成も可能です）" 
-                                />
-                            </Card>
-
-                            <Card title="支援目標・方針 (Goal)" className="border-l-4 border-l-green-500">
-                                <InfoItem label="本人の希望（将来の目標）" value={plan.userDesire || application.futureGoal} />
-                                <div className="bg-green-50 p-3 rounded mb-3"><InfoItem label="短期目標（〜6ヶ月）" value={plan.shortTermGoal} /></div>
-                                <InfoItem label="長期目標（約1年）" value={plan.longTermGoal} />
-                                <InfoItem label="具体的な支援内容" value={plan.supportContent} />
-                            </Card>
-
-                            <Card title="直近の状況・評価 (Status)" className="border-l-4 border-l-indigo-500">
-                                 <div className="mb-4"><div className="text-xs font-bold text-slate-500 mb-1">直近のモニタリング ({monitoring.date || "実施なし"})</div><div className="bg-slate-50 p-3 rounded border border-slate-100"><div className="text-sm mb-2"><span className="font-bold">現状:</span> {monitoring.currentStatus || "記録なし"}</div><div className="text-sm mb-2"><span className="font-bold">満足度:</span> {monitoring.satisfaction || "-"}</div><div className="text-sm"><span className="font-bold">今後の課題:</span> {monitoring.futureTasks || "-"}</div></div></div>
-                                {termination.date && (<div className="mb-4"><div className="text-xs font-bold text-slate-500 mb-1">終了評価 ({termination.date})</div><div className="bg-slate-50 p-3 rounded border border-slate-100"><div className="text-sm">{termination.goals.map(g => g.overall).filter(o => o).join(" / ") || "全体評価の記述なし"}</div></div></div>)}
-                                <InfoItem label="事業所に望む支援" value={assessment.desiredSupport.detail || assessment.desiredSupport.items.join(", ")} />
-                            </Card>
-
-                            <Card title="直近の支援記録 (抜粋)" className="border-l-4 border-l-teal-500">
-                                {recentDaily.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {recentDaily.map(r => (
-                                            <div key={r.id} className="text-sm border-b pb-3 last:border-0 last:pb-0">
-                                                <div className="font-bold text-slate-700 flex items-center gap-2 mb-1">
-                                                    <Icon name="file-text" size={14} className="text-slate-400"/> {r.date} 
-                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${r.condition==='良好'?'bg-green-100 text-green-700':r.condition.includes('不調')?'bg-red-100 text-red-700':'bg-slate-100 text-slate-700'}`}>{r.condition}</span>
-                                                </div>
-                                                <div className="text-slate-600 line-clamp-3 pl-5 border-l-2 border-slate-200">{r.content}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-sm text-slate-400 py-2 text-center border border-dashed rounded bg-slate-50">支援記録がありません</div>
-                                )}
-                            </Card>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const StaffMonthlyShift = ({ staffs, staffShifts, onShiftChange }) => {
-            const [currentMonth, setCurrentMonth] = useState(new Date());
-            const days = []; const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
-            for (let i = 1; i <= lastDay; i++) days.push(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i));
-            const weekDays = ["日","月","火","水","木","金","土"];
-            const shiftOptions = [ { value: "", label: "休", color: "bg-slate-50 text-slate-400" }, { value: "09:00-18:00", label: "09:00-18:00", color: "bg-blue-100 text-blue-700" }, { value: "09:00-13:00", label: "09:00-13:00", color: "bg-green-100 text-green-700" }, { value: "13:00-18:00", label: "13:00-18:00", color: "bg-orange-100 text-orange-700" }, { value: "10:00-16:00", label: "10:00-16:00", color: "bg-purple-100 text-purple-700" } ];
-            const getShiftColor = (time) => { const opt = shiftOptions.find(o => o.value === time); return opt ? opt.color : "bg-white text-gray-700 font-normal"; };
-            
-            return (
-                <div className="w-full animate-fade-in p-2 max-w-[1400px] mx-auto">
-                    <div className="flex justify-between items-center mb-4 no-print">
-                        <h1 className="text-2xl font-bold text-slate-800">職員シフト表(月)</h1>
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => window.print()} className="px-4 py-2 border border-slate-300 rounded bg-white flex items-center gap-2 hover:bg-slate-50"><Icon name="printer" size={16} /> 印刷</button>
-                            <div className="flex items-center gap-2 bg-white rounded shadow-sm border border-slate-200 p-1">
-                                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} className="p-1 hover:bg-slate-100 rounded text-slate-600"><Icon name="chevron-left" /></button>
-                                <span className="text-lg font-bold px-2 text-slate-700">{currentMonth.getFullYear()}年 {currentMonth.getMonth() + 1}月</span>
-                                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} className="p-1 hover:bg-slate-100 rounded text-slate-600"><Icon name="chevron-right" /></button>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto shadow-sm w-full print:border-none print:shadow-none">
-                        <table className="divide-y divide-slate-200 border-collapse table-fixed w-full" style={{ minWidth: '1000px' }}>
-                            <thead className="bg-slate-50">
-                                <tr>
-                                    <th className="p-2 text-left font-bold text-slate-600 sticky left-0 bg-slate-50 z-10 w-[90px] border-r border-b text-[11px] leading-tight shadow-[1px_0_0_#e2e8f0]">職員名</th>
-                                    {days.map(d => ( <th key={d.getDate()} className={`p-0 py-1 text-center font-bold border-r border-b text-[10px] leading-tight ${d.getDay()===0?'text-red-500 bg-red-50/50':d.getDay()===6?'text-blue-500 bg-blue-50/50':'text-slate-600'}`}>{d.getDate()}<br/>{weekDays[d.getDay()]}</th> ))}
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-slate-200">
-                                {staffs.map(staff => (
-                                    <tr key={staff.id} className="h-14 hover:bg-slate-50">
-                                        <td className="p-2 font-medium text-slate-900 sticky left-0 bg-white border-r border-b text-[10px] truncate shadow-[1px_0_0_#e2e8f0] z-10 group-hover:bg-slate-50" title={`${staff.name} (${staff.role})`}><div className="truncate w-full font-bold">{staff.name}</div><div className="text-[8px] text-slate-400 font-normal truncate w-full">{staff.role}</div></td>
-                                        {days.map(date => {
-                                            const dk = formatDateKey(date); const shift = (staffShifts[dk] && staffShifts[dk][staff.id]) || { time: "", checked: false }; const time = shift.time;
-                                            return (
-                                                <td key={date.toISOString()} className={`p-0 border-r border-b relative group ${getShiftColor(time)} hover:brightness-95 transition-all`}>
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center font-bold text-[9.5px] pointer-events-none">
-                                                        {!time ? <span className="text-slate-400 font-normal">休</span> : time.includes('-') ? <div className="flex flex-col items-center leading-tight"><span>{time.split('-')[0]}</span><span className="text-[7px] my-[1px] opacity-50">|</span><span>{time.split('-')[1]}</span></div> : <span>{time}</span>}
-                                                    </div>
-                                                    <select className="w-full h-full appearance-none focus:outline-none cursor-pointer opacity-0" value={time} onChange={(e) => onShiftChange(date, staff.id, e.target.value === "MANUAL" ? (prompt("時間入力", time)||time) : e.target.value)}>
-                                                        {shiftOptions.map(opt => ( <option key={opt.label} value={opt.value}>{opt.label}</option> ))}
-                                                        {time && !shiftOptions.some(o=>o.value===time) && <option value={time}>{time}</option>}
-                                                        <option value="MANUAL">手動入力...</option>
-                                                    </select>
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        };
-
-        const ApplicationForm = ({ data, onChange, staffList }) => {
-            const update = (field, value) => onChange({ ...data, [field]: value });
-            const updateSchedule = (field, value) => onChange({ ...data, schedule: { ...data.schedule, [field]: value } });
-            const handleCheckbox = (field, item) => { const current = data[field] || []; if (current.includes(item)) update(field, current.filter(i => i !== item)); else update(field, [...current, item]); };
-            const timeOptions = [ "10:00～11:00", "10:00～12:00", "10:00～14:00", "10:00～15:00", "11:00～12:00", "11:00～14:00", "11:00～15:00", "13:00～14:00", "13:00～15:00", "14:00～15:00" ];
-            return (
-                <div className="animate-fade-in">
-                    <Card title="基本情報・連絡先">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><InputGroup label="受付日"><TextInput type="date" value={data.receptionDate} onChange={e => update('receptionDate', e.target.value)} /></InputGroup><InputGroup label="見学対応者（スタッフ）"><StaffSelect value={data.interviewer} onChange={e => update('interviewer', e.target.value)} options={staffList} /></InputGroup>
-                            <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-4 rounded-md border border-blue-100"><InputGroup label="お名前（利用者）" required><TextInput value={data.applicantName} onChange={e => update('applicantName', e.target.value)} placeholder="例：飯嶋 卓也" className="font-bold" /></InputGroup><InputGroup label="フリガナ"><TextInput value={data.applicantNameKana} onChange={e => update('applicantNameKana', e.target.value)} placeholder="例：イイジマ タクヤ" /></InputGroup><InputGroup label="生年月日"><TextInput type="date" value={data.dob} onChange={e => update('dob', e.target.value)} /></InputGroup><InputGroup label="年齢"><TextInput type="number" value={data.age} onChange={e => update('age', e.target.value)} /></InputGroup></div>
-                            <InputGroup label="性別"><div className="flex mt-2">{['男性', '女性', 'その他'].map(g => (<Radio key={g} label={g} name="gender" value={g} checked={data.gender === g} onChange={() => update('gender', g)} />))}</div></InputGroup><InputGroup label="住所"><TextInput value={data.address} onChange={e => update('address', e.target.value)} /></InputGroup><InputGroup label="電話番号"><TextInput value={data.phone} onChange={e => update('phone', e.target.value)} /></InputGroup><InputGroup label="メールアドレス"><TextInput value={data.email} onChange={e => update('email', e.target.value)} /></InputGroup>
-                        </div>
-                    </Card>
-                    <Card title="障害・手帳情報">
-                         <div className="mb-4"><label className="block text-sm font-medium mb-2">障害種別</label><div className="flex flex-wrap">{['身体障害', '知的障害', '精神障害'].map(t => (<Checkbox key={t} label={t} checked={(data.disabilityType || []).includes(t)} onChange={() => handleCheckbox('disabilityType', t)} />))}</div></div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><InputGroup label="病名・障害名"><TextInput value={data.disabilityName} onChange={e => update('disabilityName', e.target.value)} /></InputGroup><InputGroup label="障害等級"><TextInput value={data.disabilityGrade} onChange={e => update('disabilityGrade', e.target.value)} /></InputGroup></div>
-                    </Card>
-                    <Card title="今後の予定管理">
-                        <div className="grid grid-cols-1 gap-4">
-                            <InputGroup label="体験1回目"><div className="flex gap-2"><TextInput type="date" value={data.schedule.trial1} onChange={e => updateSchedule('trial1', e.target.value)} className="flex-1" /><div className="relative flex-1"><select className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none bg-white" value={data.schedule.trial1Time} onChange={e => updateSchedule('trial1Time', e.target.value)}><option value="">時間選択</option>{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><Icon name="chevron-down" size={16} /></div></div></div></InputGroup>
-                            <InputGroup label="体験2回目"><div className="flex gap-2"><TextInput type="date" value={data.schedule.trial2} onChange={e => updateSchedule('trial2', e.target.value)} className="flex-1" /><div className="relative flex-1"><select className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none bg-white" value={data.schedule.trial2Time} onChange={e => updateSchedule('trial2Time', e.target.value)}><option value="">時間選択</option>{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><Icon name="chevron-down" size={16} /></div></div></div></InputGroup>
-                            <InputGroup label="体験3回目"><div className="flex gap-2"><TextInput type="date" value={data.schedule.trial3} onChange={e => updateSchedule('trial3', e.target.value)} className="flex-1" /><div className="relative flex-1"><select className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none bg-white" value={data.schedule.trial3Time} onChange={e => updateSchedule('trial3Time', e.target.value)}><option value="">時間選択</option>{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><Icon name="chevron-down" size={16} /></div></div></div></InputGroup>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2"><InputGroup label="受給者証発行日"><TextInput type="date" value={data.schedule.certificateDate} onChange={e => updateSchedule('certificateDate', e.target.value)} /></InputGroup><InputGroup label="契約予定日"><TextInput type="date" value={data.schedule.contractDate} onChange={e => updateSchedule('contractDate', e.target.value)} /></InputGroup></div>
-                        </div>
-                    </Card>
-                </div>
-            );
-        };
-
-        const AssessmentForm = ({ data, onChange, applicationData, staffList }) => {
-            const [tab, setTab] = useState(0); const tabs = ["基本情報", "就労・生活歴", "アセスメント", "総合所見"];
-            const update = (field, value) => onChange({ ...data, [field]: value });
-            const updateNested = (parent, field, value) => onChange({ ...data, [parent]: { ...data[parent], [field]: value } });
-            const RatingRow = ({ label, category, field }) => {
-                const val = data.checklist[category][field];
-                return (<div className="border-b border-slate-100 py-3"><div className="flex justify-between items-center mb-2"><span className="font-medium text-slate-700">{label}</span><select className="border rounded p-1 text-sm bg-slate-50" value={val.score} onChange={(e) => onChange({...data, checklist: {...data.checklist, [category]: {...data.checklist[category], [field]: {...val, score: parseInt(e.target.value) }}}})}><option value="0">-</option><option value="1">1. 出来る</option><option value="2">2. 少し支援が必要</option><option value="3">3. 支援が必要</option><option value="4">4. 出来ない</option></select></div><TextInput placeholder="特記事項・支援ポイント" value={val.note} onChange={(e) => onChange({...data, checklist: {...data.checklist, [category]: {...data.checklist[category], [field]: {...val, note: e.target.value }}}})} /></div>);
-            };
-
-            return (
-                <div className="animate-fade-in">
-                    <div className="flex space-x-2 bg-slate-100 p-1.5 rounded-lg mb-6 overflow-x-auto border border-slate-200">{tabs.map((t, i) => (<button key={i} onClick={() => setTab(i)} className={`flex-1 py-2 px-4 rounded-md text-sm font-bold transition-all whitespace-nowrap ${tab === i ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-200'}`}>{t}</button>))}</div>
-                    {tab === 0 && (<Card title="基本情報"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><InputGroup label="作成日"><TextInput type="date" value={data.createDate} onChange={e => update('createDate', e.target.value)} /></InputGroup><InputGroup label="記入者"><StaffSelect value={data.writer} onChange={e => update('writer', e.target.value)} options={staffList} /></InputGroup></div><SectionHeader text="緊急連絡先" /><div className="grid grid-cols-3 gap-2 mb-4"><TextInput placeholder="氏名" value={data.emergencyContact.name} onChange={e => updateNested('emergencyContact', 'name', e.target.value)} /><TextInput placeholder="続柄" value={data.emergencyContact.relation} onChange={e => updateNested('emergencyContact', 'relation', e.target.value)} /><TextInput placeholder="TEL" value={data.emergencyContact.tel} onChange={e => updateNested('emergencyContact', 'tel', e.target.value)} /></div><SectionHeader text="医療情報" /><div className="grid grid-cols-2 gap-4"><InputGroup label="通院先"><TextInput value={data.medical.hospital} onChange={e => updateNested('medical', 'hospital', e.target.value)} /></InputGroup><InputGroup label="診断名"><TextInput value={data.medical.diagnosis} onChange={e => updateNested('medical', 'diagnosis', e.target.value)} /></InputGroup><InputGroup label="主治医"><TextInput value={data.medical.doctor} onChange={e => updateNested('medical', 'doctor', e.target.value)} /></InputGroup><InputGroup label="通院頻度"><TextInput value={data.medical.visitFrequency} onChange={e => updateNested('medical', 'visitFrequency', e.target.value)} /></InputGroup></div></Card>)}
-                    {tab === 1 && (<Card title="就労・生活歴"><SectionHeader text="職歴" />{data.workHistory.map((w, idx) => (<div key={idx} className="bg-slate-50 p-3 rounded mb-3 border border-slate-200"><div className="grid grid-cols-2 gap-2 mb-2"><TextInput placeholder="会社名" value={w.company} onChange={e => {const list = [...data.workHistory]; list[idx].company = e.target.value; update('workHistory', list);}} /><TextInput placeholder="雇用形態" value={w.type} onChange={e => {const list = [...data.workHistory]; list[idx].type = e.target.value; update('workHistory', list);}} /></div><TextArea placeholder="仕事内容" rows={2} value={w.content} onChange={e => {const list = [...data.workHistory]; list[idx].content = e.target.value; update('workHistory', list);}} /></div>))}<button className="text-sm text-blue-600 hover:text-blue-800 font-bold mb-6" onClick={() => update('workHistory', [...data.workHistory, { company: "", content: "", type: "" }])}>+ 職歴を追加</button><SectionHeader text="病歴・配慮事項" /><InputGroup label="調子を崩す前兆（誘因）"><TextArea value={data.triggers} onChange={e => update('triggers', e.target.value)} /></InputGroup><InputGroup label="調子を崩した時の対処"><TextArea value={data.coping} onChange={e => update('coping', e.target.value)} /></InputGroup><InputGroup label="現在の精神状況"><TextArea value={data.currentMentalState} onChange={e => update('currentMentalState', e.target.value)} /></InputGroup></Card>)}
-                    {tab === 2 && (<Card title="アセスメントシート"><div className="bg-blue-50 p-3 rounded mb-4 text-sm font-medium text-blue-800 border border-blue-200">1.出来る / 2.少し支援が必要 / 3.支援が必要 / 4.出来ない</div><SectionHeader text="健康管理" /><RatingRow label="体調管理" category="health" field="physical" /><RatingRow label="服薬管理" category="health" field="medication" /><SectionHeader text="日常生活" /><RatingRow label="生活リズム" category="daily" field="rhythm" /><RatingRow label="身だしなみ" category="daily" field="appearance" /><SectionHeader text="対人・就労" /><RatingRow label="感情コントロール" category="social" field="emotion" /><RatingRow label="協調性" category="social" field="cooperation" /><RatingRow label="就労意欲" category="work" field="motivation" /></Card>)}
-                    {tab === 3 && (<Card title="総合所見"><SectionHeader text="事業所に望む支援" /><TextArea value={data.desiredSupport.detail} onChange={e => updateNested('desiredSupport', 'detail', e.target.value)} rows={3} /><SectionHeader text="総合所見" /><InputGroup label="本人が希望している就労内容"><TextArea value={data.overallOpinion.desiredWork} onChange={e => updateNested('overallOpinion', 'desiredWork', e.target.value)} /></InputGroup><InputGroup label="今後必要となる力（課題）"><TextArea value={data.overallOpinion.futureTasks} onChange={e => updateNested('overallOpinion', 'futureTasks', e.target.value)} /></InputGroup></Card>)}
-                </div>
-            );
-        };
-
-        const PlanForm = ({ data, onChange, applicationData, staffList }) => {
-            const handlePeriodStartChange = (val) => { const newData = { ...data, periodStart: val }; if (val) { const date = new Date(val); date.setMonth(date.getMonth() + 6); newData.monitoringDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; } onChange(newData); };
-            const update = (field, value) => onChange({ ...data, [field]: value });
-            return (
-                <div className="animate-fade-in"><Card title="個別支援計画">
-                    <div className="grid grid-cols-3 gap-4 mb-4"><InputGroup label="計画開始日"><TextInput type="date" value={data.periodStart} onChange={e => handlePeriodStartChange(e.target.value)} /></InputGroup><InputGroup label="計画終了日"><TextInput type="date" value={data.periodEnd} onChange={e => update('periodEnd', e.target.value)} /></InputGroup><InputGroup label="次回モニタリング予定"><TextInput type="date" value={data.monitoringDate} onChange={e => update('monitoringDate', e.target.value)} className="bg-yellow-50" /></InputGroup></div>
-                    <SectionHeader text="ニーズと目標" /><InputGroup label="本人の希望"><TextArea value={data.userDesire} onChange={e => update('userDesire', e.target.value)} /></InputGroup><InputGroup label="長期目標（約1年）"><TextArea value={data.longTermGoal} onChange={e => update('longTermGoal', e.target.value)} /></InputGroup><InputGroup label="短期目標（〜6ヶ月）"><TextArea value={data.shortTermGoal} onChange={e => update('shortTermGoal', e.target.value)} /></InputGroup><InputGroup label="具体的な支援内容"><TextArea rows={5} value={data.supportContent} onChange={e => update('supportContent', e.target.value)} /></InputGroup>
-                    <div className="grid grid-cols-2 gap-4 mt-6"><InputGroup label="作成担当者"><StaffSelect value={data.staff} onChange={e => update('staff', e.target.value)} options={staffList} /></InputGroup><InputGroup label="承認者（サビ管）"><StaffSelect value={data.approver} onChange={e => update('approver', e.target.value)} options={staffList} /></InputGroup></div>
-                </Card></div>
-            );
-        };
-
-        const MonitoringForm = ({ data, onChange, applicationData, planData, staffList }) => {
-            const update = (field, value) => onChange({ ...data, [field]: value });
-            const alert = checkDeadlineAlert(planData?.monitoringDate, data.date, "モニタリング");
-            return (
-                <div className="animate-fade-in"><Card title="モニタリング記録">
-                    <AlertBanner alert={alert} dateLabel="予定日" date={planData?.monitoringDate} />
-                    <div className="grid grid-cols-2 gap-4 mb-4"><InputGroup label="面談日"><TextInput type="date" value={data.date} onChange={e => update('date', e.target.value)} /></InputGroup><InputGroup label="担当者"><StaffSelect value={data.interviewer} onChange={e => update('interviewer', e.target.value)} options={staffList} /></InputGroup></div>
-                    <SectionHeader text="評価・振り返り" /><InputGroup label="現状"><TextArea value={data.currentStatus} onChange={e => update('currentStatus', e.target.value)} /></InputGroup><InputGroup label="現状に対する満足度"><TextArea value={data.satisfaction} onChange={e => update('satisfaction', e.target.value)} /></InputGroup><InputGroup label="今後の課題"><TextArea value={data.futureTasks} onChange={e => update('futureTasks', e.target.value)} /></InputGroup>
-                </Card></div>
-            );
-        };
-
-        const TerminationForm = ({ data, onChange, applicationData, planData }) => {
-            const update = (field, value) => onChange({ ...data, [field]: value });
-            const handleRowChange = (id, field, value) => update('goals', data.goals.map(r => r.id === id ? { ...r, [field]: value } : r));
-            const alert = checkDeadlineAlert(planData?.periodEnd, data.date, "終了評価");
-            return (
-                <div className="animate-fade-in"><Card title="終了評価">
-                    <AlertBanner alert={alert} dateLabel="計画終了日" date={planData?.periodEnd} />
-                    <div className="mb-6"><InputGroup label="実施日"><TextInput type="date" value={data.date} onChange={e => update('date', e.target.value)} className="w-48" /></InputGroup></div>
-                    <div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 border border-slate-200 rounded"><thead className="bg-slate-50"><tr><th className="px-3 py-2 text-left text-xs font-bold text-slate-500 w-48">到達目標</th><th className="px-3 py-2 text-left text-xs font-bold text-slate-500">達成状況</th><th className="px-3 py-2 text-left text-xs font-bold text-slate-500">全体評価</th></tr></thead><tbody className="divide-y divide-slate-200">{data.goals.map(r => (<tr key={r.id}><td className="p-2 align-top"><TextArea rows={3} value={r.target} onChange={e => handleRowChange(r.id, 'target', e.target.value)} /></td><td className="p-2 align-top"><TextArea rows={3} value={r.achievement} onChange={e => handleRowChange(r.id, 'achievement', e.target.value)} /></td><td className="p-2 align-top"><TextArea rows={3} value={r.overall} onChange={e => handleRowChange(r.id, 'overall', e.target.value)} /></td></tr>))}</tbody></table></div>
-                </Card></div>
-            );
-        };
-
-        const DailyRecordForm = ({ data, assessmentData, onChange }) => {
-            const [form, setForm] = useState({ date: formatDateKey(new Date()), condition: '普通', temperature: '', content: '' });
-            const [isGenerating, setIsGenerating] = useState(false);
-
-            const handleGenerateAI = async () => {
-                setIsGenerating(true);
-                const apiKey = "";
-                const activeApiKey = localStorage.getItem("gemini_api_key") || apiKey;
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeApiKey}`;
-                
-                const userQuery = `以下の情報を元に、本日の就労支援の「支援記録（職員が書く日報）」を150文字〜200文字程度で作成してください。客観的で丁寧な文体にしてください。\n【本日の状況】\n体調: ${form.condition}\n体温: ${form.temperature ? form.temperature + '℃' : '未計測'}\n起床: ${form.wakeTime || '不明'} / 就寝: ${form.sleepTime || '不明'}\n【利用者の特性（アセスメント情報）】\n得意なこと: ${assessmentData?.dailyLife?.strengths || '情報なし'}\n苦手なこと: ${assessmentData?.dailyLife?.challenges || '情報なし'}\n配慮事項: ${assessmentData?.triggers || '情報なし'}\n`;
-                const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: "あなたは就労支援施設の経験豊富な支援員です。" }] } };
-
-                let retries = 5; let delay = 1000; let generatedText = "";
-                while (retries > 0) {
-                    try {
-                        const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-                        const result = await response.json();
-                        if (result.error) throw new Error(result.error.message);
-                        generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                        break;
-                    } catch (e) {
-                        retries--;
-                        if (retries === 0) { alert("AIの生成に失敗しました。\nローカル環境の場合は「設定・職員情報」からAPIキーを設定してください。"); } 
-                        else { await new Promise(r => setTimeout(r, delay)); delay *= 2; }
-                    }
-                }
-                if(generatedText) setForm({...form, content: generatedText.trim()});
-                setIsGenerating(false);
-            };
-
-            const addRecord = () => { if(!form.date) return; onChange([...data, { id: Date.now(), ...form }]); setForm({...form, content: ''}); };
-            return (
-                <div className="animate-fade-in space-y-6">
-                    <Card title="支援記録の登録">
-                        <div className="grid grid-cols-3 gap-4 mb-4"><InputGroup label="日付"><TextInput type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} /></InputGroup><InputGroup label="体調"><select className="w-full border p-2 rounded text-sm bg-white" value={form.condition} onChange={e=>setForm({...form, condition:e.target.value})}>{['良好', '普通', 'やや不調', '不調'].map(c=><option key={c} value={c}>{c}</option>)}</select></InputGroup><InputGroup label="体温"><TextInput type="number" step="0.1" value={form.temperature} onChange={e=>setForm({...form, temperature:e.target.value})} placeholder="例: 36.5" /></InputGroup></div>
-                        <InputGroup label="支援内容">
-                            <div className="mb-2"><button onClick={handleGenerateAI} disabled={isGenerating} className="bg-purple-600 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1 hover:bg-purple-700 disabled:opacity-50 transition-colors shadow-sm"><Icon name="wand-2" size={14} />{isGenerating ? "AIが文章を生成中..." : "AIで支援内容を自動作成"}</button></div>
-                            <TextArea rows={4} value={form.content} onChange={e=>setForm({...form, content:e.target.value})} placeholder="本日の様子や支援内容を入力してください。（AIで自動作成も可能です）" />
-                        </InputGroup>
-                        <div className="flex justify-end"><button onClick={addRecord} className="bg-blue-600 text-white px-6 py-2 rounded shadow">保存</button></div>
-                    </Card>
-                    <Card title="過去の記録">
-                        <table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left w-24">日付</th><th className="p-3 text-left w-20">体調</th><th className="p-3 text-left">内容</th><th className="p-3 text-right">操作</th></tr></thead><tbody className="divide-y divide-slate-200">{[...data].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(r => (<tr key={r.id}><td className="p-3 font-bold">{r.date}</td><td className="p-3">{r.condition}</td><td className="p-3 whitespace-pre-wrap">{r.content}</td><td className="p-3 text-right"><button onClick={()=>onChange(data.filter(x=>x.id!==r.id))} className="text-red-500"><Icon name="trash-2" size={16}/></button></td></tr>))}</tbody></table>
-                    </Card>
-                </div>
-            );
-        };
-
-        const InterviewRecordForm = ({ data, staffList, onChange }) => {
-            const [form, setForm] = useState({ date: formatDateKey(new Date()), interviewer: '', content: '' });
-            const addRecord = () => { if(!form.date || !form.content) return; onChange([...data, { id: Date.now(), ...form }]); setForm({...form, content: ''}); };
-            return (
-                <div className="animate-fade-in space-y-6">
-                    <Card title="面談記録の登録">
-                        <div className="grid grid-cols-2 gap-4 mb-4"><InputGroup label="面談日"><TextInput type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} /></InputGroup><InputGroup label="担当者"><StaffSelect value={form.interviewer} onChange={e=>setForm({...form, interviewer:e.target.value})} options={staffList} /></InputGroup></div>
-                        <InputGroup label="内容"><TextArea rows={4} value={form.content} onChange={e=>setForm({...form, content:e.target.value})} /></InputGroup>
-                        <div className="flex justify-end"><button onClick={addRecord} className="bg-blue-600 text-white px-6 py-2 rounded shadow">保存</button></div>
-                    </Card>
-                    <Card title="過去の面談">
-                        <div className="space-y-4">{[...data].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(r => (<div key={r.id} className="p-4 border rounded bg-slate-50"><div className="flex justify-between mb-2"><span className="font-bold text-blue-700">{r.date} ({r.interviewer})</span><button onClick={()=>onChange(data.filter(x=>x.id!==r.id))} className="text-red-500"><Icon name="trash-2" size={16}/></button></div><div className="whitespace-pre-wrap text-sm">{r.content}</div></div>))}</div>
-                    </Card>
-                </div>
-            );
-        };
-
-        // --- メインアプリケーション ---
-        const App = () => {
-            const [view, setView] = useState("list");
-            const [users, setUsers] = useState([]);
-            const [staffs, setStaffs] = useState([]);
-            const [tasks, setTasks] = useState([]); 
-            const [userShifts, setUserShifts] = useState({}); 
-            const [staffShifts, setStaffShifts] = useState({});
-            const [events, setEvents] = useState([]); 
-            const [activeUser, setActiveUser] = useState(null);
-            const [activeForm, setActiveForm] = useState("summary");
-            const [deleteTarget, setDeleteTarget] = useState(null);
-            const [globalNotes, setGlobalNotes] = useState("");
-            const [isGeneratingGlobal, setIsGeneratingGlobal] = useState(false);
-
-            useEffect(() => {
-                const ls = (k, def) => { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; };
-                const u = ls("knowbe_users", null);
-                if (u) setUsers(Array.isArray(u) ? u.map(mergeUserData) : []);
-                else { const d = { ...getInitialUserState(), id: Date.now(), name: "飯嶋 卓也", application: { ...getInitialUserState().application, applicantName: "飯嶋 卓也", applicantNameKana: "イイジマ タクヤ", interviewer: "小野 美和子" } }; d.status = determineStatus(d); setUsers([d]); }
-                setStaffs(ls("knowbe_staffs", [{ id: 1, name: "小野 美和子", role: "管理者" }, { id: 2, name: "白澤 慶太", role: "施設長" }]));
-                setTasks(ls("knowbe_tasks", [{id: 1, name: "箱折り", level: "1", deadline: "1週間", description: "紙箱を組み立てる作業"}]));
-                setUserShifts(ls("knowbe_shifts", {}));
-                setStaffShifts(ls("knowbe_staff_shifts", {}));
-                setGlobalNotes(ls("knowbe_global_notes", ""));
-                setEvents(ls("knowbe_events", [])); 
-            }, []);
-
-            useEffect(() => { localStorage.setItem("knowbe_users", JSON.stringify(users)); }, [users]);
-            useEffect(() => { localStorage.setItem("knowbe_staffs", JSON.stringify(staffs)); }, [staffs]);
-            useEffect(() => { localStorage.setItem("knowbe_tasks", JSON.stringify(tasks)); }, [tasks]);
-            useEffect(() => { localStorage.setItem("knowbe_shifts", JSON.stringify(userShifts)); }, [userShifts]);
-            useEffect(() => { localStorage.setItem("knowbe_staff_shifts", JSON.stringify(staffShifts)); }, [staffShifts]);
-            useEffect(() => { localStorage.setItem("knowbe_global_notes", JSON.stringify(globalNotes)); }, [globalNotes]);
-            useEffect(() => { localStorage.setItem("knowbe_events", JSON.stringify(events)); }, [events]); 
-
-            const handleUpdateUser = (d) => { const nd = { ...d, name: d.application.applicantName || d.name, status: determineStatus(d) }; setUsers(users.map(u => u.id === nd.id ? nd : u)); };
-            const handleUserShiftUpdate = (date, uid, field, val) => { const dk = formatDateKey(date); const s = userShifts[dk] || {}; const cs = s[uid] || { checked: false, time: "10:00-15:00" }; let ns = { ...cs }; if (field === 'checked') { ns.checked = val; if(val && !ns.time) ns.time = "10:00-15:00"; } else { ns.time = val; if(val) ns.checked = true; } setUserShifts({ ...userShifts, [dk]: { ...s, [uid]: ns } }); };
-            const handleStaffShiftUpdate = (date, sid, val) => { const dk = formatDateKey(date); const s = staffShifts[dk] || {}; setStaffShifts({ ...staffShifts, [dk]: { ...s, [sid]: { time: val, checked: !!val } } }); };
-            
-            const handleAddEvent = (newEvent) => setEvents([...events, newEvent]);
-            const handleUpdateEvent = (updatedEvent) => setEvents(events.map(e => e.id === updatedEvent.id ? updatedEvent : e));
-            const handleDeleteEvent = (eventId) => setEvents(events.filter(e => e.id !== eventId));
-
-            const executeDelete = () => { if(deleteTarget){ setUsers(users.filter(u=>u.id!==deleteTarget.id)); setDeleteTarget(null); setView("list"); }};
-            const currentUser = useMemo(() => users.find(u => u.id === activeUser), [users, activeUser]);
-
-            const handleGenerateGlobalNotes = async () => {
-                setIsGeneratingGlobal(true);
-                const apiKey = "";
-                const activeApiKey = localStorage.getItem("gemini_api_key") || apiKey;
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeApiKey}`;
-                
-                const oneMonthAgo = new Date();
-                oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-                
-                let combinedText = "";
-                users.forEach(u => {
-                    let userRecords = [];
-                    (u.dailyRecords || []).forEach(r => {
-                        if (new Date(r.date) >= oneMonthAgo) {
-                            userRecords.push(`[${r.date} 支援記録] 体調:${r.condition} 内容:${r.content}`);
-                        }
-                    });
-                    (u.interviewRecords || []).forEach(r => {
-                        if (new Date(r.date) >= oneMonthAgo) {
-                            userRecords.push(`[${r.date} 面談記録] 内容:${r.content}`);
-                        }
-                    });
-                    if (userRecords.length > 0) {
-                        combinedText += `\n■ 利用者: ${u.name}\n` + userRecords.join('\n');
+                // 認証状態の監視
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        publicDataPath = `artifacts/${currentAppId}/public/data`;
+                        setupRealtimeListeners();
                     }
                 });
 
-                if (!combinedText) {
-                    alert("直近1ヶ月の記録がありません。");
-                    setIsGeneratingGlobal(false);
-                    return;
-                }
-
-                if (combinedText.length > 15000) {
-                     combinedText = combinedText.substring(0, 15000) + "\n...（以降省略）";
-                }
-
-                const userQuery = `以下の障害福祉施設の全利用者の直近1ヶ月の支援記録・面談記録を元に、施設全体で共有すべき重要な連絡事項、引き継ぎ事項、注意が必要な利用者の変化などを要約してください。箇条書きで分かりやすくまとめてください。\n\n【記録一覧】\n${combinedText}`;
-                
-                const payload = {
-                    contents: [{ parts: [{ text: userQuery }] }],
-                    systemInstruction: { parts: [{ text: "あなたは障害福祉施設の経験豊富なサービス管理責任者です。事業所全体で共有すべき重要な連絡事項を、要点を絞って簡潔に作成します。" }] }
-                };
-
-                let retries = 5; let delay = 1000; let generatedText = "";
-                while (retries > 0) {
-                    try {
-                        const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-                        const result = await response.json();
-                        if (result.error) throw new Error(result.error.message);
-                        generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                        break;
-                    } catch (e) {
-                        retries--;
-                        if (retries === 0) { alert("AIの生成に失敗しました。\nローカル環境の場合は「設定・職員情報」からAPIキーを設定してください。"); } 
-                        else { await new Promise(r => setTimeout(r, delay)); delay *= 2; }
-                    }
-                }
-                
-                if (generatedText) {
-                    setGlobalNotes(generatedText.trim());
-                }
-                setIsGeneratingGlobal(false);
-            };
-
-            return (
-                <ErrorBoundary>
-                <div className="flex min-h-screen">
-                    <div className="w-64 bg-slate-800 text-slate-300 flex-shrink-0 flex flex-col no-print">
-                        <div className="p-5 text-lg font-bold border-b border-slate-700 flex items-center gap-2 text-white"><div className="w-8 h-8 bg-blue-500 rounded flex items-center justify-center shadow-lg">個</div>個別支援計画君</div>
-                        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-                            <div className="text-xs font-bold text-slate-500 px-3 py-2 mt-2">支援記録</div>
-                            <button onClick={() => setView("list")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "list" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="users" /><span>利用者一覧</span></button>
-                            <div className="text-xs font-bold text-slate-500 px-3 py-2 mt-4">日々の業務</div>
-                            <button onClick={() => setView("user_shift")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "user_shift" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="calendar" /><span>利用者シフト</span></button>
-                            <button onClick={() => setView("seat_map")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "seat_map" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="layout-grid" /><span>座席配置</span></button>
-                            <button onClick={() => setView("task_list")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "task_list" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="clipboard-list" /><span>作業一覧</span></button>
-                            <div className="text-xs font-bold text-slate-500 px-3 py-2 mt-4">職員管理</div>
-                            <button onClick={() => setView("staff_shift")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "staff_shift" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="users-2" /><span>職員配置シミュ</span></button>
-                            <button onClick={() => setView("staff_shift_monthly")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "staff_shift_monthly" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="table" /><span>職員シフト表(月)</span></button>
-                            <button onClick={() => setView("schedule")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "schedule" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="clock" /><span>スケジュール</span></button>
-                            <button onClick={() => setView("staff_list")} className={`flex items-center space-x-3 w-full p-2.5 rounded-md transition-colors ${view === "staff_list" ? "bg-blue-600 text-white shadow" : "hover:bg-slate-700 hover:text-white"}`}><Icon name="settings" /><span>設定・職員情報</span></button>
-                        </nav>
-                    </div>
-                    <div className="flex-1 flex flex-col overflow-hidden bg-[#f8fafc]">
-                        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm no-print">
-                            <div className="text-sm font-bold text-slate-600">
-                                {view === 'list' && '利用者一覧（ダッシュボード）'} {view === 'user_shift' && '利用者シフト管理'} {view === 'seat_map' && '座席配置'} {view === 'task_list' && '作業一覧'} {view === 'staff_shift' && '職員配置シミュレーション'} {view === 'staff_shift_monthly' && '職員シフト表(月)'} {view === 'schedule' && 'スケジュール管理'} {view === 'staff_list' && '設定・職員情報'} {view === 'detail' && '個別支援記録'}
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button className="text-slate-400 hover:text-slate-600"><Icon name="bell" size={20}/></button>
-                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold border border-blue-200 shadow-sm cursor-pointer">A</div>
-                            </div>
-                        </header>
-                        <main className="flex-1 p-6 overflow-y-auto">
-                            {view === "list" && (
-                                <div className="max-w-6xl mx-auto animate-fade-in space-y-6">
-                                    <div className="flex justify-between items-end mb-2">
-                                        <h1 className="text-2xl font-bold text-slate-800">ダッシュボード</h1>
-                                        <button onClick={() => { const nu = { ...getInitialUserState(), id: Date.now() }; nu.status = determineStatus(nu); setUsers([...users, nu]); setActiveUser(nu.id); setView("detail"); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg flex items-center gap-2 shadow transition-colors"><Icon name="user-plus" size={18}/>新規登録</button>
-                                    </div>
-                                    
-                                    <Card title="事業所全体の連絡事項・トピックス（直近1ヶ月の記録より）" className="border-l-4 border-l-purple-500 bg-purple-50/20">
-                                        <div className="mb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                            <p className="text-sm text-slate-600">全利用者の直近1ヶ月の支援記録や面談記録から、施設全体で共有すべき重要な引き継ぎ事項をAIが自動抽出します。</p>
-                                            <button onClick={handleGenerateGlobalNotes} disabled={isGeneratingGlobal} className="bg-purple-600 text-white text-xs px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 disabled:opacity-50 transition-colors shadow-sm font-bold shrink-0">
-                                                <Icon name="sparkles" size={16} />
-                                                {isGeneratingGlobal ? "AIが全体要約を生成中..." : "全利用者の記録からAIで要約を作成"}
-                                            </button>
-                                        </div>
-                                        <TextArea 
-                                            rows={8} 
-                                            value={globalNotes} 
-                                            onChange={e => setGlobalNotes(e.target.value)} 
-                                            placeholder="事業所全体での共有事項、引き継ぎ事項などを入力してください。（上のボタンからAIによる自動要約も可能です）" 
-                                        />
-                                    </Card>
-
-                                    <Card title="利用者一覧" className="!p-0 overflow-hidden border-l-4 border-l-blue-500">
-                                        <table className="min-w-full divide-y divide-slate-200"><thead className="bg-slate-50"><tr><th className="px-6 py-4 text-left font-bold text-slate-600">氏名</th><th className="px-6 py-4 text-left font-bold text-slate-600">状態</th><th className="px-6 py-4 text-right font-bold text-slate-600">操作</th></tr></thead>
-                                        <tbody className="divide-y divide-slate-100">{users.map(u => (<tr key={u.id} className="hover:bg-slate-50 transition-colors"><td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-normal">{u.name.charAt(0)}</div>{u.name}</td><td className="px-6 py-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.status==='利用中'?'bg-green-100 text-green-700':u.status.includes('体験')?'bg-blue-100 text-blue-700':'bg-slate-100 text-slate-600'}`}>{u.status}</span></td><td className="px-6 py-4 text-right"><button onClick={() => {setActiveUser(u.id); setView("detail");}} className="text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded font-medium mr-2 transition-colors">編集・記録</button><button onClick={() => setDeleteTarget(u)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors"><Icon name="trash-2" size={18} /></button></td></tr>))}
-                                        {users.length === 0 && <tr><td colSpan="3" className="p-8 text-center text-slate-400">利用者が登録されていません</td></tr>}
-                                        </tbody></table>
-                                    </Card>
-                                </div>
-                            )}
-                            {view === "schedule" && <StaffScheduleManager staffs={staffs} events={events} onAddEvent={handleAddEvent} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />}
-                            {view === "seat_map" && <SeatManagement users={users} staffs={staffs} userShifts={userShifts} staffShifts={staffShifts} />}
-                            {view === "task_list" && <TaskManagement tasks={tasks} setTasks={setTasks} />}
-                            {view === "user_shift" && <UserShiftManagement users={users} userShifts={userShifts} onShiftChange={handleUserShiftUpdate} />}
-                            {view === "staff_shift" && <StaffShiftManagement staffs={staffs} users={users} userShifts={userShifts} staffShifts={staffShifts} onShiftChange={handleStaffShiftUpdate} />}
-                            {view === "staff_shift_monthly" && <StaffMonthlyShift staffs={staffs} staffShifts={staffShifts} onShiftChange={handleStaffShiftUpdate} />}
-                            {view === "staff_list" && <SystemSettings staffs={staffs} setStaffs={setStaffs} />}
-                            {view === "detail" && currentUser && (
-                                <div className="max-w-6xl mx-auto animate-fade-in">
-                                    <div className="mb-6 flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                                        <div className="flex items-center gap-4">
-                                            <button onClick={()=>setView("list")} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"><Icon name="arrow-left"/></button>
-                                            <h1 className="text-2xl font-bold text-slate-800">{currentUser.name} <span className="text-sm font-normal text-slate-500 ml-2">の記録</span></h1>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${currentUser.status==='利用中'?'bg-green-100 text-green-700':currentUser.status.includes('体験')?'bg-blue-100 text-blue-700':'bg-slate-100 text-slate-600'}`}>{currentUser.status}</span>
-                                        </div>
-                                        <button onClick={() => window.print()} className="px-4 py-2 border border-slate-300 rounded bg-white flex items-center gap-2 hover:bg-slate-50 font-medium text-slate-700 transition-colors"><Icon name="printer" size={16} /> 印刷</button>
-                                    </div>
-                                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 mb-6 overflow-hidden">
-                                        <nav className="flex overflow-x-auto custom-scrollbar">
-                                            {['要約情報','仮申込書','アセスメント','個別支援計画','モニタリング','終了評価','日々の支援記録','面談記録'].map((label, idx) => { 
-                                                const ids = ['summary','application','assessment','plan','monitoring','termination','daily','interview']; 
-                                                return (<button key={ids[idx]} onClick={() => setActiveForm(ids[idx])} className={`py-4 px-6 font-bold text-sm whitespace-nowrap transition-all border-b-2 ${activeForm===ids[idx] ? 'border-blue-600 text-blue-700 bg-blue-50/30' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}>{label}</button>); 
-                                            })}
-                                        </nav>
-                                    </div>
-                                    <div className="pb-20">
-                                        {activeForm === 'summary' && <SummaryView user={currentUser} onChange={d => handleUpdateUser({...currentUser, ...d})} />}
-                                        {activeForm === 'application' && <ApplicationForm data={currentUser.application} onChange={d => handleUpdateUser({...currentUser, application: d})} staffList={staffs} />}
-                                        {activeForm === 'assessment' && <AssessmentForm data={currentUser.assessment} onChange={d => handleUpdateUser({...currentUser, assessment: d})} applicationData={currentUser.application} staffList={staffs} />}
-                                        {activeForm === 'plan' && <PlanForm data={currentUser.plan} onChange={d => handleUpdateUser({...currentUser, plan: d})} applicationData={currentUser.application} staffList={staffs} />}
-                                        {activeForm === 'monitoring' && <MonitoringForm data={currentUser.monitoring} onChange={d => handleUpdateUser({...currentUser, monitoring: d})} applicationData={currentUser.application} planData={currentUser.plan} staffList={staffs} />}
-                                        {activeForm === 'termination' && <TerminationForm data={currentUser.termination} onChange={d => handleUpdateUser({...currentUser, termination: d})} applicationData={currentUser.application} planData={currentUser.plan} />}
-                                        {activeForm === 'daily' && <DailyRecordForm data={currentUser.dailyRecords || []} assessmentData={currentUser.assessment} onChange={d => handleUpdateUser({...currentUser, dailyRecords: d})} />}
-                                        {activeForm === 'interview' && <InterviewRecordForm data={currentUser.interviewRecords || []} staffList={staffs} onChange={d => handleUpdateUser({...currentUser, interviewRecords: d})} />}
-                                    </div>
-                                </div>
-                            )}
-                        </main>
-                    </div>
-                    {deleteTarget && (
-                        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in"><div className="bg-white p-8 rounded-xl shadow-2xl max-w-sm w-full"><h3 className="text-xl font-bold text-slate-800 mb-2">削除の確認</h3><p className="text-slate-600 mb-6">「{deleteTarget.name}」のデータを削除しますか？この操作は取り消せません。</p><div className="flex justify-end gap-3"><button onClick={() => setDeleteTarget(null)} className="px-5 py-2 border border-slate-300 font-bold text-slate-600 rounded-lg hover:bg-slate-50 transition-colors">キャンセル</button><button onClick={executeDelete} className="px-5 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm">削除する</button></div></div></div>
-                    )}
-                </div>
-                </ErrorBoundary>
-            );
+            } catch (error) {
+                console.error("Firebase初期化エラー:", error);
+                alert("データベースの接続に失敗しました。この環境では動作しない可能性があります。");
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }
         };
 
-        const root = ReactDOM.createRoot(document.getElementById("root"));
-        root.render(<App />);
+        // === リアルタイムリスナーの設定 ===
+        function setupRealtimeListeners() {
+            let loadedCount = 0;
+            const checkReady = () => {
+                loadedCount++;
+                if(loadedCount >= 3) {
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                    updateAllUI();
+                }
+            };
+
+            // メンバーの監視
+            onSnapshot(collection(db, publicDataPath, 'members'), (snapshot) => {
+                members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateAllUI();
+                if(loadedCount < 3) checkReady();
+            }, (error) => console.error(error));
+
+            // お手伝い項目の監視
+            onSnapshot(collection(db, publicDataPath, 'chores'), (snapshot) => {
+                chores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateAllUI();
+                if(loadedCount < 3) checkReady();
+            }, (error) => console.error(error));
+
+            // 記録の監視
+            onSnapshot(collection(db, publicDataPath, 'records'), (snapshot) => {
+                records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // 日付の降順（新しい順）にソート
+                records.sort((a, b) => new Date(b.date) - new Date(a.date));
+                updateAllUI();
+                if(loadedCount < 3) checkReady();
+            }, (error) => console.error(error));
+        }
+
+        // === UI更新を一括で行う ===
+        function updateAllUI() {
+            renderSelectOptions();
+            renderRecentRecords();
+            renderMembersList();
+            renderChoresList();
+            if(document.getElementById('content-dashboard').classList.contains('active')){
+                renderDashboard();
+            }
+        }
+
+        // === セレクトボックスの描画 ===
+        function renderSelectOptions() {
+            const memberSelect = document.getElementById('recordMember');
+            const currentMemberVal = memberSelect.value;
+            memberSelect.innerHTML = '<option value="">メンバーを選択...</option>' + 
+                members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+            if (members.find(m => m.id === currentMemberVal)) memberSelect.value = currentMemberVal;
+
+            const choreSelect = document.getElementById('recordChore');
+            const currentChoreVal = choreSelect.value;
+            choreSelect.innerHTML = '<option value="">お手伝いを選択...</option>' + 
+                chores.map(c => `<option value="${c.id}">${c.name} (${c.price}円)</option>`).join('');
+            if (chores.find(c => c.id === currentChoreVal)) choreSelect.value = currentChoreVal;
+        }
+
+        // === 記録の追加と削除 ===
+        document.getElementById('recordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const date = document.getElementById('recordDate').value;
+            const memberId = document.getElementById('recordMember').value;
+            const choreId = document.getElementById('recordChore').value;
+            
+            const chore = chores.find(c => c.id === choreId);
+            if(!chore || !memberId) return;
+
+            try {
+                await addDoc(collection(db, publicDataPath, 'records'), {
+                    date: date,
+                    memberId: memberId,
+                    choreId: choreId,
+                    choreName: chore.name,
+                    price: Number(chore.price),
+                    timestamp: new Date().getTime()
+                });
+                
+                // フォームのリセット（日付は保持）
+                document.getElementById('recordMember').value = '';
+                document.getElementById('recordChore').value = '';
+                
+            } catch (error) {
+                console.error("追加エラー", error);
+            }
+        });
+
+        window.deleteRecord = async function(id) {
+            try {
+                await deleteDoc(doc(db, publicDataPath, 'records', id));
+            } catch (error) {
+                console.error("削除エラー", error);
+            }
+        };
+
+        // === 最近の記録一覧の描画 ===
+        function renderRecentRecords() {
+            const container = document.getElementById('recentRecordsList');
+            if (records.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">まだ記録がありません</p>';
+                return;
+            }
+
+            // 最新20件を表示
+            container.innerHTML = records.slice(0, 20).map(record => {
+                const member = members.find(m => m.id === record.memberId);
+                const memberName = member ? member.name : '不明なメンバー';
+                const color = member ? member.color : '#9ca3af';
+                
+                // 日付のフォーマット (MM/DD)
+                const dateObj = new Date(record.date);
+                const dateStr = `${dateObj.getMonth()+1}/${dateObj.getDate()}`;
+
+                return `
+                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background-color: ${color}">
+                            ${memberName.charAt(0)}
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">${record.choreName}</p>
+                            <p class="text-xs text-gray-500">${dateStr} · ${memberName}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-blue-600 font-bold text-sm">+${record.price}円</span>
+                        <button onclick="deleteRecord('${record.id}')" class="text-gray-400 hover:text-red-500 p-1">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // === メンバーの追加と削除 ===
+        document.getElementById('memberForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('newMemberName');
+            const name = nameInput.value.trim();
+            if(!name) return;
+
+            const color = THEME_COLORS[members.length % THEME_COLORS.length];
+            
+            try {
+                await addDoc(collection(db, publicDataPath, 'members'), { name, color });
+                nameInput.value = '';
+            } catch (error) {
+                console.error("メンバー追加エラー", error);
+            }
+        });
+
+        window.deleteMember = async function(id) {
+            if(confirm("このメンバーを削除しますか？\n（過去の記録の表示がおかしくなる場合があります）")) {
+                try {
+                    await deleteDoc(doc(db, publicDataPath, 'members', id));
+                } catch (error) {
+                    console.error("メンバー削除エラー", error);
+                }
+            }
+        };
+
+        function renderMembersList() {
+            const container = document.getElementById('membersList');
+            if(members.length === 0){
+                container.innerHTML = '<p class="text-sm text-gray-400">メンバーを追加してください</p>';
+                return;
+            }
+            container.innerHTML = members.map(m => `
+                <div class="flex items-center justify-between p-2 bg-white rounded border">
+                    <div class="flex items-center gap-2">
+                        <span class="w-4 h-4 rounded-full" style="background-color: ${m.color}"></span>
+                        <span class="font-medium">${m.name}</span>
+                    </div>
+                    <button onclick="deleteMember('${m.id}')" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+                </div>
+            `).join('');
+        }
+
+        // === お手伝い項目の追加と削除 ===
+        document.getElementById('choreForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('newChoreName');
+            const priceInput = document.getElementById('newChorePrice');
+            const name = nameInput.value.trim();
+            const price = Number(priceInput.value);
+            
+            if(!name || price < 0) return;
+
+            try {
+                await addDoc(collection(db, publicDataPath, 'chores'), { name, price });
+                nameInput.value = '';
+                priceInput.value = '';
+            } catch (error) {
+                console.error("お手伝い追加エラー", error);
+            }
+        });
+
+        window.deleteChore = async function(id) {
+            try {
+                await deleteDoc(doc(db, publicDataPath, 'chores', id));
+            } catch (error) {
+                console.error("お手伝い削除エラー", error);
+            }
+        };
+
+        function renderChoresList() {
+            const container = document.getElementById('choresList');
+            if(chores.length === 0){
+                container.innerHTML = '<p class="text-sm text-gray-400">お手伝いを追加してください</p>';
+                return;
+            }
+            container.innerHTML = chores.map(c => `
+                <div class="flex items-center justify-between p-2 bg-white rounded border">
+                    <span class="font-medium">${c.name}</span>
+                    <div class="flex items-center gap-3">
+                        <span class="text-gray-600">${c.price}円</span>
+                        <button onclick="deleteChore('${c.id}')" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // === ダッシュボード（グラフ）の描画 ===
+        function renderDashboard() {
+            const year = viewMonth.getFullYear();
+            const month = viewMonth.getMonth() + 1;
+            document.getElementById('currentMonthDisplay').textContent = `${year}年 ${month}月`;
+
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            
+            // 当月の記録を抽出
+            const currentRecords = records.filter(r => r.date.startsWith(monthStr));
+
+            // サマリー計算
+            const summaryData = {};
+            members.forEach(m => {
+                summaryData[m.id] = { name: m.name, color: m.color, totalAmount: 0, count: 0 };
+            });
+
+            const choreCounts = {};
+
+            currentRecords.forEach(r => {
+                // メンバー別集計
+                if(summaryData[r.memberId]) {
+                    summaryData[r.memberId].totalAmount += r.price;
+                    summaryData[r.memberId].count += 1;
+                }
+                // お手伝い種類別集計
+                choreCounts[r.choreName] = (choreCounts[r.choreName] || 0) + 1;
+            });
+
+            // サマリーカードの描画
+            const cardsContainer = document.getElementById('summaryCards');
+            if(members.length === 0) {
+                cardsContainer.innerHTML = '<p class="col-span-2 text-center text-sm text-gray-500 py-4">メンバーを登録してください</p>';
+            } else {
+                cardsContainer.innerHTML = Object.values(summaryData).map(data => `
+                    <div class="bg-white p-3 rounded-xl border shadow-sm flex flex-col items-center">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold mb-1" style="background-color: ${data.color}">
+                            ${data.name.charAt(0)}
+                        </div>
+                        <p class="text-xs text-gray-500">${data.name}</p>
+                        <p class="text-lg font-bold text-blue-600">${data.totalAmount}円</p>
+                        <p class="text-xs text-gray-400">${data.count}回</p>
+                    </div>
+                `).join('');
+            }
+
+            // --- 棒グラフ（お小遣い額比較）---
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            if(barChartInstance) barChartInstance.destroy();
+
+            const chartMembers = Object.values(summaryData);
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: chartMembers.map(m => m.name),
+                    datasets: [{
+                        label: '獲得金額（円）',
+                        data: chartMembers.map(m => m.totalAmount),
+                        backgroundColor: chartMembers.map(m => m.color),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // --- 円グラフ（お手伝い内訳）---
+            const pieCtx = document.getElementById('pieChart').getContext('2d');
+            if(pieChartInstance) pieChartInstance.destroy();
+
+            const pieLabels = Object.keys(choreCounts);
+            const pieData = Object.values(choreCounts);
+
+            if (pieLabels.length > 0) {
+                pieChartInstance = new Chart(pieCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: pieLabels,
+                        datasets: [{
+                            data: pieData,
+                            backgroundColor: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } }
+                    }
+                });
+            } else {
+                 pieChartInstance = new Chart(pieCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['データなし'],
+                        datasets: [{ data: [1], backgroundColor: ['#e5e7eb'] }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip:{enabled:false} } }
+                });
+            }
+        }
+
+        // === Gemini API 関連処理 ===
+        const apiKey = "";
+
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        async function callGeminiAPI(prompt, schema = null) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+            
+            if (schema) {
+                payload.generationConfig = {
+                    responseMimeType: "application/json",
+                    responseSchema: schema
+                };
+            }
+
+            const options = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            };
+
+            const data = await fetchWithRetry(url, options);
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        // AIほめ言葉の生成
+        window.generatePraise = async function() {
+            const btn = document.getElementById('btnGeneratePraise');
+            const resultDiv = document.getElementById('praiseResult');
+            
+            const year = viewMonth.getFullYear();
+            const month = viewMonth.getMonth() + 1;
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            const currentRecords = records.filter(r => r.date.startsWith(monthStr));
+
+            if(currentRecords.length === 0 || members.length === 0) {
+                resultDiv.innerHTML = '<span class="text-orange-600">記録が見つかりません。お手伝いを記録してから試してみてね！</span>';
+                resultDiv.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>生成中...';
+            resultDiv.classList.add('hidden');
+
+            let summaryText = "";
+            members.forEach(m => {
+                const memberRecords = currentRecords.filter(r => r.memberId === m.id);
+                const total = memberRecords.reduce((sum, r) => sum + r.price, 0);
+                summaryText += `${m.name}さん: ${memberRecords.length}回のお手伝いをしました。獲得したお小遣い合計は${total}円です。\n`;
+            });
+
+            const prompt = `あなたは子供を褒めて伸ばす優しい妖精のキャラクターです。
+以下の今月（${month}月）のお手伝い記録を見て、子供たちをめちゃくちゃ褒めるメッセージを作成してください。
+子供たちが「来月も頑張ろう！」と思えるような、明るく楽しいトーンでお願いします。絵文字もたくさん使ってください。
+
+【今月の記録】
+${summaryText}
+
+条件：
+・メッセージは200文字程度に収めてください。
+・子供たち全員の名前を呼んで、直接語りかけるように書いてください。`;
+
+            try {
+                const text = await callGeminiAPI(prompt);
+                resultDiv.textContent = text;
+                resultDiv.classList.remove('hidden');
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                resultDiv.innerHTML = '<span class="text-red-500">メッセージの生成に失敗しました。時間をおいてもう一度お試しください。</span>';
+                resultDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'メッセージを生成する';
+            }
+        };
+
+        // AIアイデアの提案
+        window.generateIdeas = async function() {
+            const contextInput = document.getElementById('aiIdeaContext').value.trim() || '一般的な年齢';
+            const btn = document.getElementById('btnGenerateIdeas');
+            const resultDiv = document.getElementById('aiIdeasResult');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>考え中';
+            resultDiv.innerHTML = '<p class="text-xs text-purple-600 text-center py-2"><i class="fas fa-magic fa-bounce mr-2"></i>AIが一生懸命考えています...</p>';
+            resultDiv.classList.remove('hidden');
+
+            const prompt = `家事の助けになり、子供の成長にもつながる子供向けのお手伝いのアイデアを3つ提案してください。
+ターゲットの年齢や状況: ${contextInput}
+相場として妥当な「お小遣い単価（円）」も設定してください。`;
+
+            const schema = {
+                type: "ARRAY",
+                items: {
+                    type: "OBJECT",
+                    properties: {
+                        name: { type: "STRING", description: "お手伝いの名前（短く簡潔に、例：お風呂掃除）" },
+                        price: { type: "INTEGER", description: "お小遣いの単価の数値（円）" }
+                    },
+                    required: ["name", "price"]
+                }
+            };
+
+            try {
+                const jsonText = await callGeminiAPI(prompt, schema);
+                const ideas = JSON.parse(jsonText);
+                
+                resultDiv.innerHTML = ideas.map((idea, index) => `
+                    <div class="flex items-center justify-between bg-white p-2 rounded-lg border border-purple-200 text-sm shadow-sm">
+                        <span class="font-medium text-gray-700 ml-2"><i class="fas fa-star text-yellow-400 mr-2"></i>${idea.name} <span class="text-gray-500 text-xs">(${idea.price}円)</span></span>
+                        <button onclick="addChoreFromAI('${idea.name}', ${idea.price}, this)" class="text-purple-600 hover:text-purple-800 font-bold px-3 py-1.5 rounded bg-purple-100 hover:bg-purple-200 transition-colors">
+                            追加
+                        </button>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                resultDiv.innerHTML = '<p class="text-xs text-red-500 py-2">アイデアの取得に失敗しました。時間をおいてお試しください。</p>';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '提案';
+            }
+        };
+
+        window.addChoreFromAI = async function(name, price, btnElement) {
+            try {
+                btnElement.disabled = true;
+                btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                await addDoc(collection(db, publicDataPath, 'chores'), { name, price });
+                btnElement.innerHTML = '追加済 <i class="fas fa-check"></i>';
+                btnElement.classList.remove('text-purple-600', 'bg-purple-100', 'hover:bg-purple-200');
+                btnElement.classList.add('text-green-600', 'bg-green-100');
+            } catch (error) {
+                console.error("お手伝い追加エラー", error);
+                btnElement.disabled = false;
+                btnElement.innerHTML = 'エラー';
+            }
+        };
+
+        // 起動処理
+        initFirebase();
+
     </script>
 </body>
 </html>
