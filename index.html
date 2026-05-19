@@ -182,7 +182,7 @@ service cloud.firestore {
                 <!-- AI設定状況表示 -->
                 <div class="bg-white p-4 rounded-xl border mb-6">
                     <h2 class="text-md font-bold mb-2"><i class="fas fa-check-circle mr-2 text-green-500"></i>AI設定済み</h2>
-                    <p class="text-sm text-gray-600">Gemini APIキーが正常にセットアップされています。AI機能をご利用いただけます。</p>
+                    <p class="text-sm text-gray-600">自動環境切替システムが有効です。AI機能をご利用いただけます。</p>
                 </div>
 
                 <div class="grid md:grid-cols-2 gap-8">
@@ -283,8 +283,15 @@ service cloud.firestore {
             appId: "1:799488769460:web:4a3d1d1a1729063beb06e1"
         };
         
-        // ★ Gemini APIの設定 ★
-        const GEMINI_API_KEY = "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
+        // ★ AI (Gemini API) 環境の自動判定 ★
+        // この画面（プレビュー環境）か、GitHub（本番環境）かを自動で判定します
+        const isPreview = window.location.hostname.includes('usercontent.goog') || window.location.hostname.includes('localhost');
+        
+        // プレビュー環境では空文字を、GitHub環境ではご自身のキーを使用します
+        const GEMINI_API_KEY = isPreview ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
+        
+        // プレビュー専用のモデルと、一般公開モデル（GitHub用）を自動で切り替えます
+        const MODEL_NAME = isPreview ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
 
         // === Firebaseの初期化 ===
         let db, auth;
@@ -683,7 +690,8 @@ service cloud.firestore {
                 try {
                     const response = await fetch(url, options);
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        const errText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errText}`);
                     }
                     return await response.json();
                 } catch (error) {
@@ -695,14 +703,9 @@ service cloud.firestore {
         }
 
         async function callGeminiAPI(prompt, schema = null) {
-            if (!GEMINI_API_KEY) {
-                throw new Error("APIキーが設定されていません。");
-            }
-            // 環境に応じてモデルを切り替える（プレビュー環境は特殊なモデルを要求するため）
-            const isPreview = window.location.hostname.includes('usercontent.goog') || window.location.hostname.includes('localhost');
-            const modelName = isPreview ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
+            // isPreview と MODEL_NAME, GEMINI_API_KEY は上で自動設定されています
             
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }]
             };
@@ -768,7 +771,7 @@ ${summaryText}
                 resultDiv.classList.remove('hidden');
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                resultDiv.innerHTML = '<span class="text-red-500">メッセージの生成に失敗しました。（AI機能を使うにはAPIキーの設定が必要です）</span>';
+                resultDiv.innerHTML = `<span class="text-red-500">メッセージの生成に失敗しました。<br><span class="text-xs text-gray-500">${error.message}</span></span>`;
                 resultDiv.classList.remove('hidden');
             } finally {
                 btn.disabled = false;
@@ -818,7 +821,7 @@ ${summaryText}
                 
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                resultDiv.innerHTML = '<p class="text-xs text-red-500 py-2">アイデアの取得に失敗しました。（AI機能を使うにはAPIキーの設定が必要です）</p>';
+                resultDiv.innerHTML = `<p class="text-xs text-red-500 py-2">アイデアの取得に失敗しました。<br><span class="text-gray-500">${error.message}</span></p>`;
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '提案';
