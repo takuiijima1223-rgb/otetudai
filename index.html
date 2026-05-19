@@ -79,7 +79,7 @@ service cloud.firestore {
             <h1 class="text-xl font-bold flex items-center justify-center gap-2">
                 <i class="fas fa-piggy-bank"></i>
                 お小遣い管理 
-                <span class="text-xs font-normal bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400">v4</span>
+                <span class="text-xs font-normal bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400">v5</span>
             </h1>
         </header>
 
@@ -186,7 +186,7 @@ service cloud.firestore {
                 <!-- AI設定状況表示 -->
                 <div class="bg-white p-4 rounded-xl border mb-6">
                     <h2 class="text-md font-bold mb-2"><i class="fas fa-check-circle mr-2 text-green-500"></i>AI設定済み</h2>
-                    <p class="text-sm text-gray-600">自動環境切替システムが有効です。AI機能をご利用いただけます。</p>
+                    <p class="text-sm text-gray-600">自動モデル探索システムが有効です。AI機能をご利用いただけます。</p>
                 </div>
 
                 <div class="grid md:grid-cols-2 gap-8">
@@ -287,17 +287,6 @@ service cloud.firestore {
             appId: "1:799488769460:web:4a3d1d1a1729063beb06e1"
         };
         
-        // ★ AI (Gemini API) 環境の自動判定 ★
-        // この画面（プレビュー環境）か、GitHub（本番環境）かを自動で判定します
-        const isPreview = window.location.hostname.includes('usercontent.goog') || window.location.hostname.includes('localhost');
-        
-        // プレビュー環境では空文字を、GitHub環境ではご自身のキーを使用します
-        const GEMINI_API_KEY = isPreview ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
-        
-        // ★重要：環境によってモデルを切り替えます★
-        // プレビュー環境は専用モデル、GitHub（本番）は一般モデルを指定します。
-        const MODEL_NAME = isPreview ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
-
         // === Firebaseの初期化 ===
         let db, auth;
 
@@ -689,7 +678,7 @@ service cloud.firestore {
         }
 
         // === Gemini API 関連処理 ===
-        async function fetchWithRetry(url, options, maxRetries = 5) {
+        async function fetchWithRetry(url, options, maxRetries = 3) {
             let delay = 1000;
             for (let i = 0; i < maxRetries; i++) {
                 try {
@@ -700,6 +689,10 @@ service cloud.firestore {
                     }
                     return await response.json();
                 } catch (error) {
+                    // 404や403などのエラーはリトライしても解決しないため即座にエラーを投げる
+                    if (error.message.includes('HTTP 404') || error.message.includes('HTTP 400') || error.message.includes('HTTP 403')) {
+                        throw error;
+                    }
                     if (i === maxRetries - 1) throw error;
                     await new Promise(resolve => setTimeout(resolve, delay));
                     delay *= 2;
@@ -708,28 +701,58 @@ service cloud.firestore {
         }
 
         async function callGeminiAPI(prompt, schema = null) {
-            // isPreview と MODEL_NAME, GEMINI_API_KEY は上で自動設定されています
+            const isPreview = window.location.hostname.includes('usercontent.goog') || window.location.hostname.includes('localhost');
+            const GEMINI_API_KEY = isPreview ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
             
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }]
-            };
-            
-            if (schema) {
-                payload.generationConfig = {
-                    responseMimeType: "application/json",
-                    responseSchema: schema
-                };
+            // ★最強の解決策：利用可能なモデルを見つけるまで順番に試す「フォールバック機能」
+            const modelsToTry = isPreview 
+                ? ["gemini-2.5-flash-preview-09-2025"] 
+                : [
+                    "gemini-1.5-flash-latest", // 最新の標準モデル
+                    "gemini-pro",              // 古いAPIキーでも確実に入っていることが多いモデル
+                    "gemini-1.5-flash",        // 短縮名のモデル
+                    "gemini-1.0-pro"           // 念のための予備
+                  ];
+
+            let lastError = null;
+
+            // リストの上のモデルから順番に通信テストを行う
+            for (const modelName of modelsToTry) {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+                    const payload = {
+                        contents: [{ parts: [{ text: prompt }] }]
+                    };
+                    
+                    if (schema) {
+                        payload.generationConfig = {
+                            responseMimeType: "application/json",
+                            responseSchema: schema
+                        };
+                    }
+
+                    const options = {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    };
+
+                    const data = await fetchWithRetry(url, options);
+                    // 通信成功！
+                    return data.candidates[0].content.parts[0].text;
+                    
+                } catch (error) {
+                    console.warn(`モデル ${modelName} のテストをスキップしました:`, error.message);
+                    lastError = error;
+                    
+                    // 「404 モデルが見つからない」というエラーの場合だけ、次のモデルのテストへ進む
+                    if (!error.message.includes('HTTP 404')) {
+                        throw error; // 403（キーが無効）などの場合は即座にエラーとして終了
+                    }
+                }
             }
-
-            const options = {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            };
-
-            const data = await fetchWithRetry(url, options);
-            return data.candidates[0].content.parts[0].text;
+            
+            throw new Error("利用可能なAIモデルがありませんでした。詳細: " + (lastError ? lastError.message : "不明なエラー"));
         }
 
         // AIほめ言葉の生成
