@@ -41,6 +41,38 @@
         <p class="text-gray-600 font-medium">データを読み込み中...</p>
     </div>
 
+    <!-- Permission Error Modal -->
+    <div id="permissionErrorBanner" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden">
+            <div class="bg-red-500 p-4 text-white flex items-center gap-3">
+                <i class="fas fa-lock fa-2x"></i>
+                <h2 class="text-lg font-bold">データベースのアクセス権限エラー</h2>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-700 mb-4">Firebaseの「セキュリティルール」が初期設定（アクセス拒否）のままになっているため、データの読み書きがブロックされています。</p>
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm">
+                    <p class="font-bold text-gray-800 mb-2">【解決方法】</p>
+                    <ol class="list-decimal ml-4 space-y-1 text-gray-700">
+                        <li>Firebaseコンソールの左メニューから「<b>Firestore Database</b>」を開く</li>
+                        <li>画面上部の「<b>ルール</b>」タブをクリック</li>
+                        <li>表示されているコードを以下のように書き換えて「<b>公開</b>」を押す</li>
+                    </ol>
+                    <div class="bg-gray-800 text-green-400 p-3 rounded mt-3 font-mono text-xs overflow-x-auto">
+<pre>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      <span class="text-yellow-300 font-bold">allow read, write: if request.auth != null;</span>
+    }
+  }
+}</pre>
+                    </div>
+                </div>
+                <p class="mt-4 text-sm text-red-600 font-bold text-center">※ルールの変更後、数分待ってからページを更新してください。</p>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-5xl mx-auto bg-white shadow-xl min-h-screen flex flex-col relative">
         <!-- Header -->
         <header class="bg-blue-500 text-white p-4 text-center shadow-md relative z-10">
@@ -198,7 +230,7 @@
     <!-- Firebase SDK (ES Modules) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // === アプリの状態 ===
@@ -232,41 +264,55 @@
             renderDashboard();
         };
 
+        // ==========================================
+        // ★ Firebaseの設定 ★
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC6heY5H4KyuyUSb7j8Qc3IeZlEZ-uka9A",
+            authDomain: "otetudai-19bd2.firebaseapp.com",
+            projectId: "otetudai-19bd2",
+            storageBucket: "otetudai-19bd2.firebasestorage.app",
+            messagingSenderId: "799488769460",
+            appId: "1:799488769460:web:4a3d1d1a1729063beb06e1"
+        };
+
         // === Firebaseの初期化 ===
-        let db, auth, currentAppId, publicDataPath;
+        let db, auth;
 
         const initFirebase = async () => {
             try {
-                // 環境変数のチェック (Canvas環境用)
-                if (typeof __firebase_config === 'undefined') {
-                    throw new Error("Firebase設定が見つかりません。");
-                }
-
-                const firebaseConfig = JSON.parse(__firebase_config);
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
-                currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-                // 認証処理
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // 匿名ログイン
+                await signInAnonymously(auth);
 
                 // 認証状態の監視
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        publicDataPath = `artifacts/${currentAppId}/public/data`;
                         setupRealtimeListeners();
                     }
                 });
 
             } catch (error) {
                 console.error("Firebase初期化エラー:", error);
-                alert("データベースの接続に失敗しました。この環境では動作しない可能性があります。");
+                if (error.code === 'auth/operation-not-allowed') {
+                    alert("エラー: FirebaseのAuthenticationで「匿名」ログインが有効になっていません。設定を確認してください。");
+                } else {
+                    alert("データベースの接続に失敗しました。設定を確認してください。");
+                }
                 document.getElementById('loadingOverlay').classList.add('hidden');
+            }
+        };
+
+        // === エラーハンドリング関数 ===
+        const handleFirestoreError = (error) => {
+            console.error("Firestore Error:", error);
+            // 権限エラーの場合にモーダルを表示
+            if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                document.getElementById('permissionErrorBanner').classList.remove('hidden');
             }
         };
 
@@ -282,27 +328,27 @@
             };
 
             // メンバーの監視
-            onSnapshot(collection(db, publicDataPath, 'members'), (snapshot) => {
+            onSnapshot(collection(db, 'members'), (snapshot) => {
                 members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
-            }, (error) => console.error(error));
+            }, handleFirestoreError);
 
             // お手伝い項目の監視
-            onSnapshot(collection(db, publicDataPath, 'chores'), (snapshot) => {
+            onSnapshot(collection(db, 'chores'), (snapshot) => {
                 chores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
-            }, (error) => console.error(error));
+            }, handleFirestoreError);
 
             // 記録の監視
-            onSnapshot(collection(db, publicDataPath, 'records'), (snapshot) => {
+            onSnapshot(collection(db, 'records'), (snapshot) => {
                 records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 // 日付の降順（新しい順）にソート
                 records.sort((a, b) => new Date(b.date) - new Date(a.date));
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
-            }, (error) => console.error(error));
+            }, handleFirestoreError);
         }
 
         // === UI更新を一括で行う ===
@@ -342,7 +388,7 @@
             if(!chore || !memberId) return;
 
             try {
-                await addDoc(collection(db, publicDataPath, 'records'), {
+                await addDoc(collection(db, 'records'), {
                     date: date,
                     memberId: memberId,
                     choreId: choreId,
@@ -357,14 +403,20 @@
                 
             } catch (error) {
                 console.error("追加エラー", error);
+                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
+                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
+                }
             }
         });
 
         window.deleteRecord = async function(id) {
             try {
-                await deleteDoc(doc(db, publicDataPath, 'records', id));
+                await deleteDoc(doc(db, 'records', id));
             } catch (error) {
                 console.error("削除エラー", error);
+                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
+                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
+                }
             }
         };
 
@@ -418,19 +470,25 @@
             const color = THEME_COLORS[members.length % THEME_COLORS.length];
             
             try {
-                await addDoc(collection(db, publicDataPath, 'members'), { name, color });
+                await addDoc(collection(db, 'members'), { name, color });
                 nameInput.value = '';
             } catch (error) {
                 console.error("メンバー追加エラー", error);
+                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
+                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
+                }
             }
         });
 
         window.deleteMember = async function(id) {
             if(confirm("このメンバーを削除しますか？\n（過去の記録の表示がおかしくなる場合があります）")) {
                 try {
-                    await deleteDoc(doc(db, publicDataPath, 'members', id));
+                    await deleteDoc(doc(db, 'members', id));
                 } catch (error) {
                     console.error("メンバー削除エラー", error);
+                    if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
+                        document.getElementById('permissionErrorBanner').classList.remove('hidden');
+                    }
                 }
             }
         };
@@ -463,19 +521,25 @@
             if(!name || price < 0) return;
 
             try {
-                await addDoc(collection(db, publicDataPath, 'chores'), { name, price });
+                await addDoc(collection(db, 'chores'), { name, price });
                 nameInput.value = '';
                 priceInput.value = '';
             } catch (error) {
                 console.error("お手伝い追加エラー", error);
+                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
+                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
+                }
             }
         });
 
         window.deleteChore = async function(id) {
             try {
-                await deleteDoc(doc(db, publicDataPath, 'chores', id));
+                await deleteDoc(doc(db, 'chores', id));
             } catch (error) {
                 console.error("お手伝い削除エラー", error);
+                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
+                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
+                }
             }
         };
 
@@ -603,7 +667,7 @@
         }
 
         // === Gemini API 関連処理 ===
-        const apiKey = "";
+        const apiKey = ""; // GitHub公開時はAPIキーを直接書くのは推奨されませんが、今回は手軽に動かすため空のままかご自身のキーを入れます
 
         async function fetchWithRetry(url, options, maxRetries = 5) {
             let delay = 1000;
@@ -623,6 +687,9 @@
         }
 
         async function callGeminiAPI(prompt, schema = null) {
+            if (!apiKey) {
+                throw new Error("APIキーが設定されていません。");
+            }
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }]
@@ -689,7 +756,7 @@ ${summaryText}
                 resultDiv.classList.remove('hidden');
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                resultDiv.innerHTML = '<span class="text-red-500">メッセージの生成に失敗しました。時間をおいてもう一度お試しください。</span>';
+                resultDiv.innerHTML = '<span class="text-red-500">メッセージの生成に失敗しました。（AI機能を使うにはAPIキーの設定が必要です）</span>';
                 resultDiv.classList.remove('hidden');
             } finally {
                 btn.disabled = false;
@@ -739,7 +806,7 @@ ${summaryText}
                 
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                resultDiv.innerHTML = '<p class="text-xs text-red-500 py-2">アイデアの取得に失敗しました。時間をおいてお試しください。</p>';
+                resultDiv.innerHTML = '<p class="text-xs text-red-500 py-2">アイデアの取得に失敗しました。（AI機能を使うにはAPIキーの設定が必要です）</p>';
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '提案';
@@ -750,7 +817,7 @@ ${summaryText}
             try {
                 btnElement.disabled = true;
                 btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                await addDoc(collection(db, publicDataPath, 'chores'), { name, price });
+                await addDoc(collection(db, 'chores'), { name, price });
                 btnElement.innerHTML = '追加済 <i class="fas fa-check"></i>';
                 btnElement.classList.remove('text-purple-600', 'bg-purple-100', 'hover:bg-purple-200');
                 btnElement.classList.add('text-green-600', 'bg-green-100');
