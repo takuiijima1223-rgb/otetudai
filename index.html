@@ -79,7 +79,7 @@ service cloud.firestore {
             <h1 class="text-xl font-bold flex items-center justify-center gap-2">
                 <i class="fas fa-piggy-bank"></i>
                 お小遣い管理 
-                <span class="text-xs font-normal bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400">v3</span>
+                <span class="text-xs font-normal bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400">v4</span>
             </h1>
         </header>
 
@@ -294,8 +294,9 @@ service cloud.firestore {
         // プレビュー環境では空文字を、GitHub環境ではご自身のキーを使用します
         const GEMINI_API_KEY = isPreview ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
         
-        // どちらの環境でも、現在確実に動作している最新のプレビューモデルに統一します
-        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+        // ★重要：環境によってモデルを切り替えます★
+        // プレビュー環境は専用モデル、GitHub（本番）は一般モデルを指定します。
+        const MODEL_NAME = isPreview ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
 
         // === Firebaseの初期化 ===
         let db, auth;
