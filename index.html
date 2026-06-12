@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- スマホ等での古いキャッシュを防ぐための設定 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     <title>お手伝い＆お小遣い管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -288,13 +293,14 @@
 
             <!-- ================= TAB 3: 設定 ================= -->
             <div id="content-settings" class="tab-content">
+                
                 <div class="bg-gradient-to-r from-emerald-50 to-teal-50 p-5 rounded-2xl border border-emerald-100 shadow-sm mb-8 flex items-center gap-4">
                     <div class="bg-white p-3 rounded-full shadow-sm text-emerald-500">
                         <i class="fas fa-robot text-xl"></i>
                     </div>
                     <div>
                         <h2 class="text-md font-bold text-emerald-800 mb-0.5">AIアシスタント連携完了</h2>
-                        <p class="text-sm text-emerald-700/80">最新のGeminiモデルを使用して、お手伝いの提案やほめ言葉を生成できます。</p>
+                        <p class="text-sm text-emerald-700/80">埋め込まれたAPIキーを使用して、お手伝いの提案やほめ言葉を生成できます。</p>
                     </div>
                 </div>
 
@@ -1065,12 +1071,13 @@
         }
 
         async function callGeminiAPI(prompt, schema = null) {
+            // Canvas環境の場合はキー不要。外部環境の場合は埋め込まれたキーを使用
             const apiKey = isCanvas ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
-            
+
             // 外部環境では、利用可能なモデルが見つかるまで自動で順番に試すフォールバック機能を実装
             const modelsToTry = isCanvas 
                 ? ["gemini-2.5-flash-preview-09-2025"] 
-                : ["gemini-1.5-flash-latest", "gemini-pro", "gemini-1.5-flash", "gemini-1.0-pro"];
+                : ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-pro"];
             
             let lastError = null;
 
