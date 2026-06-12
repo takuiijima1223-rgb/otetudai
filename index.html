@@ -11,224 +11,346 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .tab-btn.active { 
-            border-bottom: 2px solid #3b82f6; 
-            color: #3b82f6; 
+            border-bottom: 2px solid #14b8a6; /* Teal 500 */
+            color: #14b8a6; 
             font-weight: bold; 
-            background-color: #eff6ff;
+            background-color: #f0fdfa; /* Teal 50 */
         }
-        .tab-btn { color: #6b7280; transition: all 0.2s; }
+        .tab-btn { color: #64748b; transition: all 0.2s; } /* Slate 500 */
         
-        /* Loading Spinner */
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+        /* === ワクワクするアニメーション === */
+        @keyframes fadeInUp {
+            0% { opacity: 0; transform: translateY(30px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        @keyframes bounceHappy {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        @keyframes pulseStar {
+            0%, 100% { opacity: 0.4; transform: scale(0.8) rotate(0deg); }
+            50% { opacity: 1; transform: scale(1.2) rotate(15deg); }
+        }
+        @keyframes rouletteSpin {
+            0% { transform: translateY(20px); opacity: 0; }
+            50% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-20px); opacity: 0; }
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .animate-bounce-happy { animation: bounceHappy 1s cubic-bezier(0.28, 0.84, 0.42, 1) infinite; }
+        .animate-pulse-star-1 { animation: pulseStar 1.5s ease-in-out infinite; }
+        .animate-pulse-star-2 { animation: pulseStar 1.5s ease-in-out infinite 0.5s; }
+        .animate-pulse-star-3 { animation: pulseStar 1.5s ease-in-out infinite 1s; }
+        .animate-pop-in { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        /* メイン画面の初期状態（透明） */
+        .app-container { opacity: 0; }
+        .app-container.loaded { animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* プログレスバーのストライプアニメーション */
+        .progress-striped {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+            animation: progress-stripes 1s linear infinite;
+        }
+        @keyframes progress-stripes {
+            from { background-position: 1rem 0; }
+            to { background-position: 0 0; }
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans selection:bg-teal-200 selection:text-teal-900">
 
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
-        <div class="loader mb-4"></div>
-        <p class="text-gray-600 font-medium">データを読み込み中...</p>
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-50 z-50 flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="relative mb-6">
+            <i class="fas fa-star text-amber-400 absolute -top-4 -left-6 animate-pulse-star-1"></i>
+            <i class="fas fa-star text-amber-400 absolute top-2 -right-8 text-xl animate-pulse-star-2"></i>
+            <i class="fas fa-star text-amber-400 absolute -bottom-2 -left-4 text-sm animate-pulse-star-3"></i>
+            <div class="animate-bounce-happy text-teal-500 drop-shadow-lg">
+                <i class="fas fa-piggy-bank fa-5x"></i>
+            </div>
+        </div>
+        <h2 class="text-xl font-bold text-slate-600 tracking-wider">アプリを準備中...</h2>
+        <p class="text-sm text-slate-400 mt-2">データを読み込んでいます</p>
     </div>
 
-    <!-- Permission Error Modal -->
-    <div id="permissionErrorBanner" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden">
-            <div class="bg-red-500 p-4 text-white flex items-center gap-3">
+    <!-- Error Modal -->
+    <div id="permissionErrorBanner" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+            <div class="bg-rose-500 p-5 text-white flex items-center gap-3">
                 <i class="fas fa-lock fa-2x"></i>
-                <h2 class="text-lg font-bold">データベースのアクセス権限エラー</h2>
+                <h2 class="text-lg font-bold">データベースエラー</h2>
             </div>
             <div class="p-6">
-                <p class="text-gray-700 mb-4">Firebaseの「セキュリティルール」が初期設定（アクセス拒否）のままになっているため、データの読み書きがブロックされています。</p>
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm">
-                    <p class="font-bold text-gray-800 mb-2">【解決方法】</p>
-                    <ol class="list-decimal ml-4 space-y-1 text-gray-700">
-                        <li>Firebaseコンソールの左メニューから「<b>Firestore Database</b>」を開く</li>
-                        <li>画面上部の「<b>ルール</b>」タブをクリック</li>
-                        <li>表示されているコードを以下のように書き換えて「<b>公開</b>」を押す</li>
-                    </ol>
-                    <div class="bg-gray-800 text-green-400 p-3 rounded mt-3 font-mono text-xs overflow-x-auto">
-<pre>rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      <span class="text-yellow-300 font-bold">allow read, write: if request.auth != null;</span>
-    }
-  }
-}</pre>
-                    </div>
-                </div>
-                <p class="mt-4 text-sm text-red-600 font-bold text-center">※ルールの変更後、数分待ってからページを更新してください。</p>
+                <p class="text-slate-700 mb-4">データの読み書き中にエラーが発生しました。</p>
+                <button onclick="document.getElementById('permissionErrorBanner').classList.add('hidden')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold mt-4 transition-colors">閉じる</button>
             </div>
         </div>
     </div>
 
-    <div class="max-w-5xl mx-auto bg-white shadow-xl min-h-screen flex flex-col relative">
+    <!-- 目標設定用モーダル -->
+    <div id="goalModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-pop-in">
+            <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center"><i class="fas fa-bullseye text-rose-500 mr-2"></i>目標（欲しいもの）を設定</h3>
+            <form id="goalForm" class="space-y-4">
+                <input type="hidden" id="goalMemberId">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">欲しいものは？</label>
+                    <input type="text" id="goalNameInput" placeholder="例: ゲームソフト、マンガ" class="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">いくら必要？（円）</label>
+                    <input type="number" id="goalAmountInput" placeholder="例: 5000" class="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400" min="1" required>
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeGoalModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition-colors">キャンセル</button>
+                    <button type="submit" class="flex-1 bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors">設定する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ルーレット用モーダル -->
+    <div id="rouletteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 text-center relative overflow-hidden">
+            <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-300 via-transparent to-transparent"></div>
+            
+            <h3 class="text-xl font-bold text-slate-700 mb-6 relative z-10"><i class="fas fa-dice text-amber-500 mr-2"></i>お手伝いルーレット</h3>
+            
+            <div class="h-24 bg-slate-50 rounded-2xl border-2 border-slate-100 flex items-center justify-center mb-8 relative z-10 overflow-hidden shadow-inner">
+                <p id="rouletteText" class="text-2xl font-extrabold text-teal-600 px-4">スタートを押してね！</p>
+            </div>
+            
+            <div class="relative z-10">
+                <button id="rouletteStartBtn" onclick="startRoulette()" class="w-full bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg transform hover:-translate-y-1 transition-all active:scale-95 border-b-4 border-orange-600">
+                    <i class="fas fa-play mr-2"></i> ルーレットを回す！
+                </button>
+                <button id="rouletteCloseBtn" onclick="closeRoulette()" class="mt-4 text-slate-400 hover:text-slate-600 font-medium text-sm transition-colors underline">
+                    やめる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="max-w-5xl mx-auto bg-white shadow-2xl min-h-screen flex flex-col relative app-container">
         <!-- Header -->
-        <header class="bg-blue-500 text-white p-4 text-center shadow-md relative z-10">
-            <h1 class="text-xl font-bold flex items-center justify-center gap-2">
+        <header class="bg-gradient-to-r from-teal-500 to-emerald-400 text-white p-5 text-center shadow-md relative z-10">
+            <h1 class="text-2xl font-bold flex items-center justify-center gap-2 drop-shadow">
                 <i class="fas fa-piggy-bank"></i>
-                お小遣い管理 
-                <span class="text-xs font-normal bg-blue-600 px-2 py-0.5 rounded-full border border-blue-400">v5</span>
+                お手伝い＆お小遣い管理 
+                <span class="text-xs font-medium bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/30 ml-2 shadow-inner">Canvas</span>
             </h1>
         </header>
 
         <!-- Tabs Navigation -->
-        <div class="flex border-b bg-white relative z-10 sticky top-0">
-            <button onclick="switchTab('record')" id="tab-record" class="tab-btn active flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
-                <i class="fas fa-pen"></i><span>記録</span>
+        <div class="flex border-b border-slate-200 bg-white/80 backdrop-blur-md relative z-10 sticky top-0">
+            <button onclick="switchTab('record')" id="tab-record" class="tab-btn active flex-1 py-3.5 text-sm flex flex-col items-center justify-center gap-1.5 hover:bg-slate-50">
+                <i class="fas fa-pen text-lg"></i><span>記録</span>
             </button>
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
-                <i class="fas fa-chart-pie"></i><span>グラフ</span>
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn flex-1 py-3.5 text-sm flex flex-col items-center justify-center gap-1.5 hover:bg-slate-50">
+                <i class="fas fa-chart-pie text-lg"></i><span>グラフ・目標</span>
             </button>
-            <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
-                <i class="fas fa-cog"></i><span>設定</span>
+            <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn flex-1 py-3.5 text-sm flex flex-col items-center justify-center gap-1.5 hover:bg-slate-50">
+                <i class="fas fa-cog text-lg"></i><span>設定</span>
             </button>
         </div>
 
         <!-- Main Content Area -->
-        <main class="flex-1 p-4 overflow-y-auto pb-20">
+        <main class="flex-1 p-5 md:p-8 overflow-y-auto pb-24 bg-slate-50/50">
 
             <!-- ================= TAB 1: 記録 ================= -->
             <div id="content-record" class="tab-content active">
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm h-fit">
-                        <h2 class="text-md font-bold mb-4 text-blue-600 border-b pb-2"><i class="fas fa-plus-circle mr-1"></i> 新しく記録する</h2>
-                        <form id="recordForm" class="space-y-4">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- 新規記録フォーム -->
+                    <div class="bg-white p-6 rounded-2xl border border-teal-100 shadow-sm hover:shadow-md transition-shadow h-fit">
+                        <h2 class="text-lg font-bold mb-5 text-teal-600 border-b border-teal-50 pb-3 flex items-center">
+                            <div class="bg-teal-100 p-2 rounded-lg mr-3"><i class="fas fa-plus text-teal-600"></i></div>
+                            新しく記録する
+                        </h2>
+                        <form id="recordForm" class="space-y-5">
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1">日付</label>
-                                <input type="date" id="recordDate" class="w-full border rounded-lg p-2 bg-gray-50 focus:outline-blue-500" required>
+                                <label class="block text-sm font-medium text-slate-600 mb-1.5">日付</label>
+                                <input type="date" id="recordDate" class="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all" required>
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1">だれが？</label>
-                                <select id="recordMember" class="w-full border rounded-lg p-2 bg-gray-50 focus:outline-blue-500" required>
+                                <label class="block text-sm font-medium text-slate-600 mb-1.5">だれが？</label>
+                                <select id="recordMember" class="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none cursor-pointer" required>
                                     <option value="">メンバーを選択...</option>
-                                    <!-- JSで追加 -->
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1">なにをした？</label>
-                                <select id="recordChore" class="w-full border rounded-lg p-2 bg-gray-50 focus:outline-blue-500" required>
+                                <div class="flex justify-between items-end mb-1.5">
+                                    <label class="block text-sm font-medium text-slate-600">なにをした？</label>
+                                    <!-- ★ドキドキルーレットボタンを追加 -->
+                                    <button type="button" onclick="openRoulette()" class="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors flex items-center border border-amber-200">
+                                        <i class="fas fa-dice mr-1"></i> ルーレットで決める
+                                    </button>
+                                </div>
+                                <select id="recordChore" class="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none cursor-pointer" required>
                                     <option value="">お手伝いを選択...</option>
-                                    <!-- JSで追加 -->
                                 </select>
                             </div>
-                            <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow transition-colors">
-                                記録を追加
+                            
+                            <div class="bg-amber-50 text-amber-800 text-xs p-3 rounded-xl border border-amber-100 flex items-start gap-2 leading-relaxed">
+                                <i class="fas fa-info-circle mt-0.5 text-amber-500"></i>
+                                <p>記録したお手伝いは「承認待ち」になります。親が「承認」すると、ゲージやお小遣いの合計に反映されます。</p>
+                            </div>
+
+                            <button type="submit" class="w-full bg-teal-500 hover:bg-teal-600 active:bg-teal-700 text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 mt-2">
+                                <i class="fas fa-pencil-alt mr-1"></i> 記録を追加
                             </button>
                         </form>
                     </div>
 
+                    <!-- 最近の記録 -->
                     <div>
-                        <h2 class="text-md font-bold mb-3 text-gray-700">最近の記録</h2>
-                        <div id="recentRecordsList" class="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                        <h2 class="text-lg font-bold mb-4 text-slate-700 px-1">最近の記録</h2>
+                        <div id="recentRecordsList" class="space-y-3 max-h-[65vh] overflow-y-auto pr-2">
                             <!-- JSで追加 -->
-                            <p class="text-center text-gray-400 text-sm py-4">記録がありません</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- ================= TAB 2: ダッシュボード ================= -->
-            <div id="content-dashboard" class="tab-content space-y-6">
-                <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border max-w-md mx-auto">
-                    <button onclick="changeMonth(-1)" class="p-2 text-gray-500 hover:text-blue-500"><i class="fas fa-chevron-left"></i></button>
-                    <h2 id="currentMonthDisplay" class="text-lg font-bold text-gray-800">2023年10月</h2>
-                    <button onclick="changeMonth(1)" class="p-2 text-gray-500 hover:text-blue-500"><i class="fas fa-chevron-right"></i></button>
+            <div id="content-dashboard" class="tab-content space-y-8">
+                <!-- 期間選択コントロール -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 max-w-3xl mx-auto">
+                    <div class="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto">
+                        <button id="period-btn-month" onclick="setPeriodMode('month')" class="flex-1 md:flex-none px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-teal-600 shadow-sm transition-all">月間</button>
+                        <button id="period-btn-all" onclick="setPeriodMode('all')" class="flex-1 md:flex-none px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">全期間</button>
+                        <button id="period-btn-custom" onclick="setPeriodMode('custom')" class="flex-1 md:flex-none px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">指定期間</button>
+                    </div>
+
+                    <div id="period-control-month" class="flex items-center gap-3">
+                        <button onclick="changeMonth(-1)" class="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-50 hover:text-teal-500 transition-colors"><i class="fas fa-chevron-left"></i></button>
+                        <h2 id="currentMonthDisplay" class="text-lg font-bold text-slate-700 w-32 text-center">2023年10月</h2>
+                        <button onclick="changeMonth(1)" class="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-50 hover:text-teal-500 transition-colors"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+
+                    <div id="period-control-custom" class="hidden items-center gap-2 w-full md:w-auto">
+                        <input type="date" id="customStartDate" class="flex-1 border border-slate-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-slate-50">
+                        <span class="text-slate-400">〜</span>
+                        <input type="date" id="customEndDate" class="flex-1 border border-slate-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-slate-50">
+                        <button onclick="applyCustomPeriod()" class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap">適用</button>
+                    </div>
+
+                    <div id="period-control-all" class="hidden text-center md:text-left mt-2 md:mt-0">
+                        <span class="text-sm font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-lg border border-slate-200">すべての承認済記録</span>
+                    </div>
                 </div>
 
-                <!-- メンバー別サマリー -->
-                <div id="summaryCards" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <!-- ★メンバー別サマリー＆目標＆称号カード -->
+                <div id="summaryCards" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- JSで追加 -->
                 </div>
 
-                <!-- グラフ -->
+                <!-- グラフエリア -->
                 <div class="grid md:grid-cols-2 gap-6">
-                    <div class="bg-white p-3 rounded-xl border shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-600 mb-2 text-center">お小遣い獲得額（円）</h3>
-                        <div class="relative h-48 w-full">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <h3 class="text-sm font-bold text-slate-500 mb-4 text-center tracking-wider">お小遣い獲得額（選択期間）</h3>
+                        <div class="relative h-56 w-full">
                             <canvas id="barChart"></canvas>
                         </div>
                     </div>
                     
-                    <div class="bg-white p-3 rounded-xl border shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-600 mb-2 text-center">よくやったお手伝い（全体）</h3>
-                        <div class="relative h-48 w-full">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <h3 class="text-sm font-bold text-slate-500 mb-4 text-center tracking-wider">よくやったお手伝い（選択期間）</h3>
+                        <div class="relative h-56 w-full">
                             <canvas id="pieChart"></canvas>
                         </div>
                     </div>
                 </div>
 
                 <!-- AIほめ言葉 -->
-                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-xl border border-yellow-200 shadow-sm mt-6">
-                    <h3 class="text-md font-bold text-yellow-700 mb-2"><i class="fas fa-sparkles mr-2"></i>AIからのほめ言葉 ✨</h3>
-                    <p class="text-sm text-gray-600 mb-3">今月のがんばりをAIが分析して、特別なメッセージを贈ります！モチベーションアップに！</p>
-                    <button onclick="generatePraise()" id="btnGeneratePraise" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 px-4 rounded shadow transition-colors text-sm">
-                        メッセージを生成する
+                <div class="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-2xl border border-amber-200 shadow-sm mt-8 relative overflow-hidden">
+                    <i class="fas fa-crown absolute -right-4 -top-4 text-amber-200 text-6xl opacity-30 transform rotate-12"></i>
+                    
+                    <h3 class="text-lg font-bold text-amber-700 mb-2 relative z-10"><i class="fas fa-sparkles text-amber-500 mr-2"></i>AIからのほめ言葉</h3>
+                    <p class="text-sm text-amber-900/70 mb-5 relative z-10">選んだ期間のがんばりをAIが分析して、特別なメッセージを贈ります！</p>
+                    <button onclick="generatePraise()" id="btnGeneratePraise" class="bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 text-sm relative z-10">
+                        <i class="fas fa-magic mr-1"></i> メッセージを生成する
                     </button>
-                    <div id="praiseResult" class="mt-4 text-gray-800 font-medium whitespace-pre-wrap hidden p-4 bg-white rounded-lg border border-yellow-200 shadow-inner"></div>
+                    <div id="praiseResult" class="mt-5 text-slate-700 font-medium whitespace-pre-wrap hidden p-5 bg-white/80 backdrop-blur rounded-xl border border-amber-100 shadow-inner leading-relaxed relative z-10"></div>
                 </div>
             </div>
 
             <!-- ================= TAB 3: 設定 ================= -->
             <div id="content-settings" class="tab-content">
-                
-                <!-- AI設定状況表示 -->
-                <div class="bg-white p-4 rounded-xl border mb-6">
-                    <h2 class="text-md font-bold mb-2"><i class="fas fa-check-circle mr-2 text-green-500"></i>AI設定済み</h2>
-                    <p class="text-sm text-gray-600">自動モデル探索システムが有効です。AI機能をご利用いただけます。</p>
+                <div class="bg-gradient-to-r from-emerald-50 to-teal-50 p-5 rounded-2xl border border-emerald-100 shadow-sm mb-8 flex items-center gap-4">
+                    <div class="bg-white p-3 rounded-full shadow-sm text-emerald-500">
+                        <i class="fas fa-robot text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-md font-bold text-emerald-800 mb-0.5">AIアシスタント連携完了</h2>
+                        <p class="text-sm text-emerald-700/80">最新のGeminiモデルを使用して、お手伝いの提案やほめ言葉を生成できます。</p>
+                    </div>
                 </div>
 
                 <div class="grid md:grid-cols-2 gap-8">
                     <!-- メンバー設定 -->
-                    <div>
-                        <h2 class="text-md font-bold mb-3 text-gray-700 flex items-center"><i class="fas fa-users mr-2 text-blue-500"></i>メンバー管理</h2>
-                        <form id="memberForm" class="flex gap-2 mb-4">
-                            <input type="text" id="newMemberName" placeholder="名前 (例: たろう)" class="flex-1 border rounded-lg p-2 bg-gray-50" required>
-                            <button type="submit" class="bg-blue-500 text-white px-4 rounded-lg font-bold"><i class="fas fa-plus"></i></button>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-fit">
+                        <h2 class="text-md font-bold mb-5 text-slate-700 flex items-center">
+                            <span class="bg-sky-100 text-sky-500 w-8 h-8 flex items-center justify-center rounded-lg mr-3"><i class="fas fa-users"></i></span>
+                            メンバー＆目標管理
+                        </h2>
+                        <form id="memberForm" class="flex gap-2 mb-6">
+                            <input type="text" id="newMemberName" placeholder="名前 (例: たろう)" class="flex-1 border border-slate-200 rounded-xl p-3 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition-all" required>
+                            <button type="submit" class="bg-sky-500 hover:bg-sky-600 text-white px-5 rounded-xl font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"><i class="fas fa-plus"></i></button>
                         </form>
-                        <div id="membersList" class="space-y-2">
+                        <div id="membersList" class="space-y-3">
                             <!-- JSで追加 -->
                         </div>
                     </div>
 
                     <!-- お手伝い設定 -->
-                    <div>
-                        <h2 class="text-md font-bold mb-3 text-gray-700 flex items-center"><i class="fas fa-broom mr-2 text-green-500"></i>お手伝いマスター</h2>
-                        <form id="choreForm" class="space-y-2 mb-4 bg-gray-50 p-3 rounded-lg border">
-                            <input type="text" id="newChoreName" placeholder="項目名 (例: お風呂掃除)" class="w-full border rounded-lg p-2" required>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                        <h2 class="text-md font-bold mb-5 text-slate-700 flex items-center">
+                            <span class="bg-emerald-100 text-emerald-500 w-8 h-8 flex items-center justify-center rounded-lg mr-3"><i class="fas fa-broom"></i></span>
+                            お手伝いマスター
+                        </h2>
+                        <form id="choreForm" class="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <input type="text" id="newChoreName" placeholder="項目名 (例: お風呂掃除)" class="w-full border border-slate-200 rounded-xl p-3 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all" required>
                             <div class="flex gap-2">
-                                <input type="number" id="newChorePrice" placeholder="単価 (円)" class="flex-1 border rounded-lg p-2" min="0" required>
-                                <button type="submit" class="bg-green-500 text-white px-4 rounded-lg font-bold whitespace-nowrap"><i class="fas fa-plus mr-1"></i>追加</button>
+                                <div class="relative flex-1">
+                                    <input type="number" id="newChorePrice" placeholder="単価" class="w-full border border-slate-200 rounded-xl p-3 pr-8 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all" min="0" required>
+                                    <span class="absolute right-3 top-3 text-slate-400">円</span>
+                                </div>
+                                <button type="submit" class="bg-emerald-500 hover:bg-emerald-600 text-white px-5 rounded-xl font-bold shadow-md hover:shadow-lg transition-all whitespace-nowrap transform hover:-translate-y-0.5">
+                                    追加
+                                </button>
                             </div>
                         </form>
 
                         <!-- AIアイデア提案 -->
-                        <div class="mb-4 bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-sm">
-                            <h3 class="text-sm font-bold text-purple-700 mb-2"><i class="fas fa-lightbulb mr-1"></i>AIにお手伝いのアイデアを相談 ✨</h3>
-                            <p class="text-xs text-purple-600 mb-2">年齢や季節などを入力すると、おすすめのお手伝いと単価を提案します。</p>
+                        <div class="mb-6 bg-rose-50 p-5 rounded-xl border border-rose-100 shadow-sm relative">
+                            <h3 class="text-sm font-bold text-rose-700 mb-2 flex items-center"><i class="fas fa-lightbulb text-rose-500 mr-2"></i>AIにお手伝いのアイデアを相談</h3>
+                            <p class="text-xs text-rose-600/80 mb-4 leading-relaxed">年齢や季節などを入力すると、おすすめのお手伝いと単価を提案します。</p>
                             <div class="flex gap-2 mb-2">
-                                <input type="text" id="aiIdeaContext" placeholder="例: 5歳くらい、夏休み" class="flex-1 text-sm border rounded-lg p-2 focus:outline-purple-500">
-                                <button onclick="generateIdeas()" id="btnGenerateIdeas" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow transition-colors text-sm whitespace-nowrap">
+                                <input type="text" id="aiIdeaContext" placeholder="例: 5歳くらい、夏休み" class="flex-1 text-sm border border-rose-200 rounded-xl p-3 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all">
+                                <button onclick="generateIdeas()" id="btnGenerateIdeas" class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 px-5 rounded-xl shadow-md hover:shadow-lg transition-all text-sm whitespace-nowrap transform hover:-translate-y-0.5">
                                     提案
                                 </button>
                             </div>
-                            <div id="aiIdeasResult" class="space-y-2 hidden mt-3">
+                            <div id="aiIdeasResult" class="space-y-2 hidden mt-4">
                                 <!-- JSで追加 -->
                             </div>
                         </div>
 
-                        <div id="choresList" class="space-y-2">
+                        <div id="choresList" class="space-y-2 border-t border-slate-100 pt-4">
                             <!-- JSで追加 -->
                         </div>
                     </div>
@@ -241,8 +363,8 @@ service cloud.firestore {
     <!-- Firebase SDK (ES Modules) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // === アプリの状態 ===
         let members = [];
@@ -251,9 +373,16 @@ service cloud.firestore {
         let viewMonth = new Date();
         let barChartInstance = null;
         let pieChartInstance = null;
-        const THEME_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+        let editingChoreId = null;
+        let periodMode = 'month'; 
+        let customStartDate = ''; 
+        let customEndDate = ''; 
+        let rouletteInterval = null;
+        
+        // 洗練されたモダンなカラーパレット
+        const THEME_COLORS = ['#14b8a6', '#f59e0b', '#fb7185', '#6366f1', '#8b5cf6', '#10b981', '#0ea5e9'];
 
-        // DOM要素
+        // DOM要素初期化
         const recordDateInput = document.getElementById('recordDate');
         recordDateInput.value = new Date().toISOString().split('T')[0];
 
@@ -263,10 +392,7 @@ service cloud.firestore {
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('content-' + tabId).classList.add('active');
             document.getElementById('tab-' + tabId).classList.add('active');
-            
-            if(tabId === 'dashboard') {
-                renderDashboard();
-            }
+            if(tabId === 'dashboard') renderDashboard();
         };
 
         // === 月切り替え関数 ===
@@ -276,93 +402,105 @@ service cloud.firestore {
         };
 
         // ==========================================
-        // ★ Firebaseの設定 ★
+        // ★ 称号・レベル計算ロジック
         // ==========================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyC6heY5H4KyuyUSb7j8Qc3IeZlEZ-uka9A",
-            authDomain: "otetudai-19bd2.firebaseapp.com",
-            projectId: "otetudai-19bd2",
-            storageBucket: "otetudai-19bd2.firebasestorage.app",
-            messagingSenderId: "799488769460",
-            appId: "1:799488769460:web:4a3d1d1a1729063beb06e1"
-        };
+        function getLevelInfo(totalAmount) {
+            if (totalAmount < 500) return { level: 1, title: 'ひよこ級', icon: 'fa-egg', color: 'text-slate-400', bg: 'bg-slate-100', border: 'border-slate-200' };
+            if (totalAmount < 2000) return { level: 2, title: '見習いヒーロー', icon: 'fa-child', color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' };
+            if (totalAmount < 5000) return { level: 3, title: 'お手伝い戦士', icon: 'fa-shield-alt', color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200' };
+            if (totalAmount < 10000) return { level: 4, title: 'ベテラン', icon: 'fa-medal', color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-200' };
+            return { level: 5, title: 'お手伝いマスター', icon: 'fa-crown', color: 'text-amber-500', bg: 'bg-gradient-to-r from-amber-100 to-yellow-50', border: 'border-amber-300' };
+        }
+
+        // ==========================================
+        // ★ Firebaseの設定
+        // ==========================================
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
-        // === Firebaseの初期化 ===
-        let db, auth;
+        let db, auth, userId;
+        let membersRef, choresRef, recordsRef;
 
         const initFirebase = async () => {
+            if (!firebaseConfig) {
+                setTimeout(() => finishLoading(), 1500);
+                return;
+            }
             try {
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                // 匿名ログイン
-                await signInAnonymously(auth);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
 
-                // 認証状態の監視
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
+                        userId = user.uid;
+                        membersRef = collection(db, 'artifacts', appId, 'users', userId, 'members');
+                        choresRef = collection(db, 'artifacts', appId, 'users', userId, 'chores');
+                        recordsRef = collection(db, 'artifacts', appId, 'users', userId, 'records');
                         setupRealtimeListeners();
                     }
                 });
-
             } catch (error) {
                 console.error("Firebase初期化エラー:", error);
-                if (error.code === 'auth/operation-not-allowed') {
-                    alert("エラー: FirebaseのAuthenticationで「匿名」ログインが有効になっていません。設定を確認してください。");
-                } else {
-                    alert("データベースの接続に失敗しました。設定を確認してください。");
-                }
-                document.getElementById('loadingOverlay').classList.add('hidden');
-            }
-        };
-
-        // === エラーハンドリング関数 ===
-        const handleFirestoreError = (error) => {
-            console.error("Firestore Error:", error);
-            // 権限エラーの場合にモーダルを表示
-            if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
-                document.getElementById('loadingOverlay').classList.add('hidden');
+                finishLoading();
                 document.getElementById('permissionErrorBanner').classList.remove('hidden');
             }
         };
 
-        // === リアルタイムリスナーの設定 ===
+        const handleFirestoreError = (error) => {
+            console.error("Firestore Error:", error);
+            finishLoading();
+            document.getElementById('permissionErrorBanner').classList.remove('hidden');
+        };
+
+        function finishLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                document.querySelector('.app-container').classList.add('loaded');
+            }, 500);
+        }
+
         function setupRealtimeListeners() {
+            if (!userId) return;
             let loadedCount = 0;
             const checkReady = () => {
                 loadedCount++;
                 if(loadedCount >= 3) {
-                    document.getElementById('loadingOverlay').classList.add('hidden');
+                    finishLoading();
                     updateAllUI();
                 }
             };
-
-            // メンバーの監視
-            onSnapshot(collection(db, 'members'), (snapshot) => {
+            onSnapshot(membersRef, (snapshot) => {
                 members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
             }, handleFirestoreError);
-
-            // お手伝い項目の監視
-            onSnapshot(collection(db, 'chores'), (snapshot) => {
+            onSnapshot(choresRef, (snapshot) => {
                 chores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
             }, handleFirestoreError);
-
-            // 記録の監視
-            onSnapshot(collection(db, 'records'), (snapshot) => {
+            onSnapshot(recordsRef, (snapshot) => {
                 records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // 日付の降順（新しい順）にソート
-                records.sort((a, b) => new Date(b.date) - new Date(a.date));
+                records.sort((a, b) => {
+                    const dateA = new Date(a.date).getTime();
+                    const dateB = new Date(b.date).getTime();
+                    if(dateB !== dateA) return dateB - dateA;
+                    return (b.timestamp || 0) - (a.timestamp || 0);
+                });
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
             }, handleFirestoreError);
         }
 
-        // === UI更新を一括で行う ===
         function updateAllUI() {
             renderSelectOptions();
             renderRecentRecords();
@@ -373,7 +511,6 @@ service cloud.firestore {
             }
         }
 
-        // === セレクトボックスの描画 ===
         function renderSelectOptions() {
             const memberSelect = document.getElementById('recordMember');
             const currentMemberVal = memberSelect.value;
@@ -388,7 +525,63 @@ service cloud.firestore {
             if (chores.find(c => c.id === currentChoreVal)) choreSelect.value = currentChoreVal;
         }
 
-        // === 記録の追加と削除 ===
+        // ==========================================
+        // ★ ルーレット機能
+        // ==========================================
+        window.openRoulette = function() {
+            if (chores.length === 0) {
+                alert("まずは「設定」タブからお手伝いを追加してね！");
+                return;
+            }
+            document.getElementById('rouletteModal').classList.remove('hidden');
+            document.getElementById('rouletteText').textContent = "スタートを押してね！";
+            document.getElementById('rouletteStartBtn').disabled = false;
+            document.getElementById('rouletteStartBtn').innerHTML = '<i class="fas fa-play mr-2"></i> ルーレットを回す！';
+        };
+
+        window.closeRoulette = function() {
+            clearInterval(rouletteInterval);
+            document.getElementById('rouletteModal').classList.add('hidden');
+        };
+
+        window.startRoulette = function() {
+            const btn = document.getElementById('rouletteStartBtn');
+            const textEl = document.getElementById('rouletteText');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 回っています...';
+            
+            let counter = 0;
+            const maxTicks = 20; // ルーレットが回る回数
+            
+            rouletteInterval = setInterval(() => {
+                const randomChore = chores[Math.floor(Math.random() * chores.length)];
+                textEl.textContent = randomChore.name;
+                textEl.style.transform = `scale(${1 + Math.random() * 0.2})`;
+                textEl.style.color = THEME_COLORS[Math.floor(Math.random() * THEME_COLORS.length)];
+                
+                counter++;
+                if (counter >= maxTicks) {
+                    clearInterval(rouletteInterval);
+                    
+                    // 結果の決定
+                    const finalChore = chores[Math.floor(Math.random() * chores.length)];
+                    textEl.innerHTML = `<span class="text-3xl text-rose-500 animate-pop-in block"><i class="fas fa-star text-amber-400 mr-2"></i>${finalChore.name}！</span>`;
+                    textEl.style.transform = "scale(1)";
+                    
+                    // セレクトボックスに自動入力
+                    document.getElementById('recordChore').value = finalChore.id;
+                    
+                    btn.innerHTML = '<i class="fas fa-check mr-2"></i> 決定！';
+                    setTimeout(() => {
+                        closeRoulette();
+                    }, 1500);
+                }
+            }, 100);
+        };
+
+        // ==========================================
+        // ★ 記録・承認機能
+        // ==========================================
         document.getElementById('recordForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const date = document.getElementById('recordDate').value;
@@ -396,73 +589,95 @@ service cloud.firestore {
             const choreId = document.getElementById('recordChore').value;
             
             const chore = chores.find(c => c.id === choreId);
-            if(!chore || !memberId) return;
+            if(!chore || !memberId || !userId) return;
 
             try {
-                await addDoc(collection(db, 'records'), {
+                await addDoc(recordsRef, {
                     date: date,
                     memberId: memberId,
                     choreId: choreId,
                     choreName: chore.name,
                     price: Number(chore.price),
-                    timestamp: new Date().getTime()
+                    timestamp: new Date().getTime(),
+                    status: 'pending' 
                 });
-                
-                // フォームのリセット（日付は保持）
                 document.getElementById('recordMember').value = '';
                 document.getElementById('recordChore').value = '';
-                
             } catch (error) {
                 console.error("追加エラー", error);
-                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
-                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
-                }
+                document.getElementById('permissionErrorBanner').classList.remove('hidden');
             }
         });
 
-        window.deleteRecord = async function(id) {
+        window.approveRecord = async function(id) {
+            if(!userId) return;
             try {
-                await deleteDoc(doc(db, 'records', id));
+                await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'records', id), {
+                    status: 'approved'
+                });
             } catch (error) {
-                console.error("削除エラー", error);
-                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
-                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
-                }
+                console.error("承認エラー", error);
+                document.getElementById('permissionErrorBanner').classList.remove('hidden');
             }
         };
 
-        // === 最近の記録一覧の描画 ===
+        window.deleteRecord = async function(id) {
+            if(!userId) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'records', id));
+            } catch (error) {
+                console.error("削除エラー", error);
+                document.getElementById('permissionErrorBanner').classList.remove('hidden');
+            }
+        };
+
         function renderRecentRecords() {
             const container = document.getElementById('recentRecordsList');
             if (records.length === 0) {
-                container.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">まだ記録がありません</p>';
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl border border-slate-100 p-8 text-center shadow-sm">
+                        <i class="fas fa-clipboard-list text-4xl text-slate-200 mb-3"></i>
+                        <p class="text-slate-500 font-medium">まだ記録がありません</p>
+                        <p class="text-sm text-slate-400 mt-1">左のフォームから追加してみよう！</p>
+                    </div>`;
                 return;
             }
 
-            // 最新20件を表示
             container.innerHTML = records.slice(0, 20).map(record => {
                 const member = members.find(m => m.id === record.memberId);
                 const memberName = member ? member.name : '不明なメンバー';
-                const color = member ? member.color : '#9ca3af';
-                
-                // 日付のフォーマット (MM/DD)
+                const color = member ? member.color : '#94a3b8'; 
                 const dateObj = new Date(record.date);
                 const dateStr = `${dateObj.getMonth()+1}/${dateObj.getDate()}`;
 
+                const isPending = record.status === 'pending';
+                const statusBadge = isPending 
+                    ? `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 ml-2 shadow-sm whitespace-nowrap">承認待ち</span>` 
+                    : `<span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 ml-2 shadow-sm whitespace-nowrap">承認済</span>`;
+                
+                const rightAction = isPending
+                    ? `<button onclick="approveRecord('${record.id}')" class="bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1 active:scale-95 whitespace-nowrap">
+                           <i class="fas fa-check-circle"></i> 承認
+                       </button>`
+                    : `<span class="text-teal-600 font-extrabold text-sm bg-teal-50 px-2 py-1 rounded-md border border-teal-100 whitespace-nowrap">+${record.price}円</span>`;
+
                 return `
-                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background-color: ${color}">
+                <div class="flex items-center justify-between bg-white p-4 rounded-xl border ${isPending ? 'border-amber-200 border-l-4 border-l-amber-400' : 'border-slate-100 border-l-4 border-l-emerald-400'} shadow-sm hover:shadow-md transition-shadow group">
+                    <div class="flex items-center gap-3 md:gap-4 overflow-hidden">
+                        <div class="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner shrink-0" style="background-color: ${color}">
                             ${memberName.charAt(0)}
                         </div>
-                        <div>
-                            <p class="text-sm font-bold text-gray-800">${record.choreName}</p>
-                            <p class="text-xs text-gray-500">${dateStr} · ${memberName}</p>
+                        <div class="min-w-0">
+                            <div class="flex items-center mb-0.5">
+                                <p class="text-sm font-bold text-slate-700 truncate max-w-[120px] md:max-w-[200px]">${record.choreName}</p>
+                                ${statusBadge}
+                            </div>
+                            <p class="text-xs text-slate-500 truncate"><i class="far fa-calendar-alt mr-1"></i>${dateStr} · ${memberName}</p>
                         </div>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <span class="text-blue-600 font-bold text-sm">+${record.price}円</span>
-                        <button onclick="deleteRecord('${record.id}')" class="text-gray-400 hover:text-red-500 p-1">
+                    <div class="flex items-center gap-2 shrink-0">
+                        ${rightAction}
+                        <button onclick="deleteRecord('${record.id}')" class="text-slate-300 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 shrink-0">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -471,180 +686,352 @@ service cloud.firestore {
             }).join('');
         }
 
-        // === メンバーの追加と削除 ===
+        // ==========================================
+        // ★ メンバー＆目標設定
+        // ==========================================
         document.getElementById('memberForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const nameInput = document.getElementById('newMemberName');
             const name = nameInput.value.trim();
-            if(!name) return;
+            if(!name || !userId) return;
 
             const color = THEME_COLORS[members.length % THEME_COLORS.length];
-            
             try {
-                await addDoc(collection(db, 'members'), { name, color });
+                await addDoc(membersRef, { name, color });
                 nameInput.value = '';
             } catch (error) {
                 console.error("メンバー追加エラー", error);
-                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
-                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
-                }
             }
         });
 
         window.deleteMember = async function(id) {
-            if(confirm("このメンバーを削除しますか？\n（過去の記録の表示がおかしくなる場合があります）")) {
-                try {
-                    await deleteDoc(doc(db, 'members', id));
-                } catch (error) {
-                    console.error("メンバー削除エラー", error);
-                    if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
-                        document.getElementById('permissionErrorBanner').classList.remove('hidden');
-                    }
-                }
+            if(!userId) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'members', id));
+            } catch (error) {
+                console.error("メンバー削除エラー", error);
             }
         };
+
+        // 目標モーダルの開閉と保存
+        window.openGoalModal = function(memberId) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+            document.getElementById('goalMemberId').value = member.id;
+            document.getElementById('goalNameInput').value = member.goalName || '';
+            document.getElementById('goalAmountInput').value = member.goalAmount || '';
+            document.getElementById('goalModal').classList.remove('hidden');
+        };
+
+        window.closeGoalModal = function() {
+            document.getElementById('goalModal').classList.add('hidden');
+        };
+
+        document.getElementById('goalForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('goalMemberId').value;
+            const goalName = document.getElementById('goalNameInput').value.trim();
+            const goalAmount = Number(document.getElementById('goalAmountInput').value);
+
+            if (!id || !userId) return;
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'members', id), {
+                    goalName: goalName,
+                    goalAmount: goalAmount
+                });
+                closeGoalModal();
+            } catch (error) {
+                console.error("目標設定エラー", error);
+            }
+        });
 
         function renderMembersList() {
             const container = document.getElementById('membersList');
             if(members.length === 0){
-                container.innerHTML = '<p class="text-sm text-gray-400">メンバーを追加してください</p>';
+                container.innerHTML = '<p class="text-sm text-slate-400 bg-slate-50 p-3 rounded-xl text-center border border-slate-100">メンバーを追加してください</p>';
                 return;
             }
-            container.innerHTML = members.map(m => `
-                <div class="flex items-center justify-between p-2 bg-white rounded border">
-                    <div class="flex items-center gap-2">
-                        <span class="w-4 h-4 rounded-full" style="background-color: ${m.color}"></span>
-                        <span class="font-medium">${m.name}</span>
+            container.innerHTML = members.map(m => {
+                const goalBadge = m.goalName && m.goalAmount 
+                    ? `<div class="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 truncate max-w-[120px]"><i class="fas fa-bullseye mr-1 text-teal-500"></i>${m.goalName}(${m.goalAmount}円)</div>`
+                    : `<div class="text-[10px] text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 border-dashed">目標未設定</div>`;
+
+                return `
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group hover:border-slate-200 transition-colors">
+                    <div class="flex flex-col gap-1 overflow-hidden">
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 shrink-0 rounded-full shadow-inner flex items-center justify-center text-white text-[10px] font-bold" style="background-color: ${m.color}">${m.name.charAt(0)}</span>
+                            <span class="font-bold text-slate-700 text-sm truncate">${m.name}</span>
+                        </div>
+                        <div class="pl-8">${goalBadge}</div>
                     </div>
-                    <button onclick="deleteMember('${m.id}')" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="openGoalModal('${m.id}')" class="text-slate-400 hover:text-teal-500 p-2 rounded-lg hover:bg-white transition-colors shadow-sm bg-slate-100 text-xs font-bold whitespace-nowrap border border-transparent hover:border-teal-200"><i class="fas fa-bullseye mr-1"></i>目標</button>
+                        <button onclick="deleteMember('${m.id}')" class="text-slate-400 hover:text-rose-500 w-8 h-8 rounded-lg hover:bg-white transition-colors opacity-0 group-hover:opacity-100 shadow-sm"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
-        // === お手伝い項目の追加と削除 ===
+        // ==========================================
+        // ★ お手伝い項目の編集
+        // ==========================================
         document.getElementById('choreForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const nameInput = document.getElementById('newChoreName');
             const priceInput = document.getElementById('newChorePrice');
             const name = nameInput.value.trim();
             const price = Number(priceInput.value);
-            
-            if(!name || price < 0) return;
-
+            if(!name || price < 0 || !userId) return;
             try {
-                await addDoc(collection(db, 'chores'), { name, price });
+                await addDoc(choresRef, { name, price });
                 nameInput.value = '';
                 priceInput.value = '';
-            } catch (error) {
-                console.error("お手伝い追加エラー", error);
-                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
-                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
-                }
-            }
+            } catch (error) { console.error(error); }
         });
 
         window.deleteChore = async function(id) {
-            try {
-                await deleteDoc(doc(db, 'chores', id));
-            } catch (error) {
-                console.error("お手伝い削除エラー", error);
-                if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission'))) {
-                    document.getElementById('permissionErrorBanner').classList.remove('hidden');
+            if(!userId) return;
+            try { await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'chores', id)); } catch (error) { console.error(error); }
+        };
+
+        window.editChore = function(id) { editingChoreId = id; renderChoresList(); };
+        window.cancelEditChore = function() { editingChoreId = null; renderChoresList(); };
+
+        window.setPeriodMode = function(mode) {
+            periodMode = mode;
+            ['month', 'all', 'custom'].forEach(m => {
+                const btn = document.getElementById(`period-btn-${m}`);
+                btn.className = m === mode ? "flex-1 md:flex-none px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-teal-600 shadow-sm transition-all" : "flex-1 md:flex-none px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all";
+                const control = document.getElementById(`period-control-${m}`);
+                if (m === mode) {
+                    control.classList.remove('hidden');
+                    if (m === 'month' || m === 'custom') control.classList.add('flex');
+                    else control.classList.add('block');
+                } else {
+                    control.classList.add('hidden');
+                    control.classList.remove('flex', 'block');
                 }
-            }
+            });
+            renderDashboard();
+        };
+
+        window.applyCustomPeriod = function() {
+            customStartDate = document.getElementById('customStartDate').value;
+            customEndDate = document.getElementById('customEndDate').value;
+            renderDashboard();
+        };
+
+        window.saveChore = async function(id) {
+            if(!userId) return;
+            const nameInput = document.getElementById(`editChoreName_${id}`);
+            const priceInput = document.getElementById(`editChorePrice_${id}`);
+            if (!nameInput || !priceInput) return;
+            const name = nameInput.value.trim();
+            const price = Number(priceInput.value);
+            if(!name || price < 0) return;
+            try {
+                const btn = document.getElementById(`saveChoreBtn_${id}`);
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.disabled = true;
+                await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'chores', id), { name: name, price: price });
+                editingChoreId = null;
+            } catch (error) { console.error(error); }
         };
 
         function renderChoresList() {
             const container = document.getElementById('choresList');
             if(chores.length === 0){
-                container.innerHTML = '<p class="text-sm text-gray-400">お手伝いを追加してください</p>';
+                container.innerHTML = '<p class="text-sm text-slate-400 bg-slate-50 p-3 rounded-xl text-center border border-slate-100">お手伝いを追加してください</p>';
                 return;
             }
-            container.innerHTML = chores.map(c => `
-                <div class="flex items-center justify-between p-2 bg-white rounded border">
-                    <span class="font-medium">${c.name}</span>
-                    <div class="flex items-center gap-3">
-                        <span class="text-gray-600">${c.price}円</span>
-                        <button onclick="deleteChore('${c.id}')" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>
+            container.innerHTML = chores.map(c => {
+                if (c.id === editingChoreId) {
+                    return `
+                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 shadow-sm flex flex-col gap-2 transition-all">
+                        <div class="flex gap-2">
+                            <input type="text" id="editChoreName_${c.id}" value="${c.name}" class="flex-1 border border-emerald-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" placeholder="項目名">
+                            <div class="relative w-28 shrink-0">
+                                <input type="number" id="editChorePrice_${c.id}" value="${c.price}" class="w-full border border-emerald-200 rounded-lg p-2 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" min="0">
+                                <span class="absolute right-2 top-2 text-slate-400 text-xs">円</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 mt-1">
+                            <button onclick="cancelEditChore()" class="text-slate-500 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">キャンセル</button>
+                            <button id="saveChoreBtn_${c.id}" onclick="saveChore('${c.id}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors whitespace-nowrap">保存</button>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                    `;
+                } else {
+                    return `
+                    <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group hover:border-slate-200 transition-colors">
+                        <span class="font-medium text-slate-700">${c.name}</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-600 bg-white px-2 py-1 rounded-md border border-slate-100 text-sm font-medium mr-1">${c.price}円</span>
+                            <button onclick="editChore('${c.id}')" class="text-slate-400 hover:text-emerald-500 w-8 h-8 rounded-lg hover:bg-white transition-colors opacity-0 group-hover:opacity-100 shadow-sm flex items-center justify-center"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteChore('${c.id}')" class="text-slate-400 hover:text-rose-500 w-8 h-8 rounded-lg hover:bg-white transition-colors opacity-0 group-hover:opacity-100 shadow-sm flex items-center justify-center"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                    `;
+                }
+            }).join('');
         }
 
-        // === ダッシュボード（グラフ）の描画 ===
+        // ==========================================
+        // ★ ダッシュボード描画（目標・称号・グラフ）
+        // ==========================================
         function renderDashboard() {
-            const year = viewMonth.getFullYear();
-            const month = viewMonth.getMonth() + 1;
-            document.getElementById('currentMonthDisplay').textContent = `${year}年 ${month}月`;
+            const approvedRecords = records.filter(r => r.status !== 'pending');
+            let currentRecords = [];
 
-            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-            
-            // 当月の記録を抽出
-            const currentRecords = records.filter(r => r.date.startsWith(monthStr));
+            if (periodMode === 'month') {
+                const year = viewMonth.getFullYear();
+                const month = viewMonth.getMonth() + 1;
+                document.getElementById('currentMonthDisplay').textContent = `${year}年 ${month}月`;
+                const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+                currentRecords = approvedRecords.filter(r => r.date.startsWith(monthStr));
+            } else if (periodMode === 'all') {
+                currentRecords = approvedRecords;
+            } else if (periodMode === 'custom') {
+                currentRecords = approvedRecords;
+                if (customStartDate) currentRecords = currentRecords.filter(r => r.date >= customStartDate);
+                if (customEndDate) currentRecords = currentRecords.filter(r => r.date <= customEndDate);
+            }
 
-            // サマリー計算
+            // サマリー計算用データ構造
             const summaryData = {};
             members.forEach(m => {
-                summaryData[m.id] = { name: m.name, color: m.color, totalAmount: 0, count: 0 };
+                // そのメンバーの全期間の累計額（称号と目標計算用）
+                const totalAllTime = approvedRecords.filter(r => r.memberId === m.id).reduce((sum, r) => sum + r.price, 0);
+                
+                summaryData[m.id] = { 
+                    name: m.name, 
+                    color: m.color, 
+                    periodAmount: 0, // 選択期間の合計
+                    periodCount: 0,
+                    totalAllTime: totalAllTime, // 全期間の合計
+                    goalName: m.goalName,
+                    goalAmount: m.goalAmount
+                };
             });
 
             const choreCounts = {};
 
+            // 選択期間の集計
             currentRecords.forEach(r => {
-                // メンバー別集計
                 if(summaryData[r.memberId]) {
-                    summaryData[r.memberId].totalAmount += r.price;
-                    summaryData[r.memberId].count += 1;
+                    summaryData[r.memberId].periodAmount += r.price;
+                    summaryData[r.memberId].periodCount += 1;
                 }
-                // お手伝い種類別集計
                 choreCounts[r.choreName] = (choreCounts[r.choreName] || 0) + 1;
             });
 
-            // サマリーカードの描画
+            // ★サマリーカード（リッチ版）の描画
             const cardsContainer = document.getElementById('summaryCards');
             if(members.length === 0) {
-                cardsContainer.innerHTML = '<p class="col-span-2 text-center text-sm text-gray-500 py-4">メンバーを登録してください</p>';
+                cardsContainer.innerHTML = '<div class="col-span-1 md:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 text-center text-slate-400 shadow-sm">設定タブからメンバーを登録してください</div>';
             } else {
-                cardsContainer.innerHTML = Object.values(summaryData).map(data => `
-                    <div class="bg-white p-3 rounded-xl border shadow-sm flex flex-col items-center">
-                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold mb-1" style="background-color: ${data.color}">
-                            ${data.name.charAt(0)}
+                cardsContainer.innerHTML = Object.values(summaryData).map(data => {
+                    const levelObj = getLevelInfo(data.totalAllTime);
+                    
+                    // プログレスバーのHTML生成
+                    let progressHtml = '';
+                    if (data.goalName && data.goalAmount > 0) {
+                        const percent = Math.min(100, Math.floor((data.totalAllTime / data.goalAmount) * 100));
+                        const isAchieved = percent >= 100;
+                        const barColor = isAchieved ? 'bg-gradient-to-r from-amber-400 to-orange-500 progress-striped' : 'bg-gradient-to-r from-teal-400 to-emerald-400';
+                        const message = isAchieved ? '<span class="text-orange-500 font-bold"><i class="fas fa-star mr-1"></i>目標達成！</span>' : `<span class="text-slate-500">あと ${data.goalAmount - data.totalAllTime} 円</span>`;
+
+                        progressHtml = `
+                            <div class="mt-4 pt-4 border-t border-slate-100 w-full">
+                                <div class="flex justify-between items-end mb-1.5 text-xs">
+                                    <span class="font-bold text-slate-600 truncate max-w-[50%]"><i class="fas fa-bullseye text-rose-400 mr-1"></i>${data.goalName}</span>
+                                    ${message}
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
+                                    <div class="${barColor} h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: ${percent}%"></div>
+                                </div>
+                                <div class="text-[10px] text-right mt-1 text-slate-400 font-medium">${data.totalAllTime} / ${data.goalAmount} 円 (${percent}%)</div>
+                            </div>
+                        `;
+                    } else {
+                        progressHtml = `
+                            <div class="mt-4 pt-4 border-t border-slate-100 w-full text-center">
+                                <p class="text-xs text-slate-400 bg-slate-50 py-2 rounded-lg border border-slate-100 border-dashed">設定から「目標」を登録できるよ！</p>
+                            </div>
+                        `;
+                    }
+
+                    return `
+                    <div class="bg-white p-5 rounded-2xl border ${levelObj.border} shadow-sm flex flex-col items-center hover:shadow-md transition-shadow relative overflow-hidden">
+                        <!-- 背景装飾 -->
+                        <div class="absolute -right-4 -top-4 w-24 h-24 ${levelObj.bg} rounded-full opacity-50"></div>
+                        
+                        <div class="flex w-full justify-between items-start mb-2 relative z-10">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-inner text-xl" style="background-color: ${data.color}">
+                                    ${data.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <p class="text-sm font-bold text-slate-800">${data.name}</p>
+                                    <p class="text-[10px] text-slate-400">Lv.${levelObj.level}</p>
+                                </div>
+                            </div>
+                            <!-- 称号バッジ -->
+                            <div class="flex items-center gap-1 ${levelObj.bg} px-2.5 py-1 rounded-lg border ${levelObj.border}">
+                                <i class="fas ${levelObj.icon} ${levelObj.color} text-sm"></i>
+                                <span class="text-xs font-bold ${levelObj.color}">${levelObj.title}</span>
+                            </div>
                         </div>
-                        <p class="text-xs text-gray-500">${data.name}</p>
-                        <p class="text-lg font-bold text-blue-600">${data.totalAmount}円</p>
-                        <p class="text-xs text-gray-400">${data.count}回</p>
+
+                        <div class="w-full text-center mt-2 relative z-10">
+                            <p class="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-1">選択期間の獲得額</p>
+                            <div class="flex justify-center items-baseline gap-1">
+                                <span class="text-3xl font-extrabold text-slate-800 tracking-tight">${data.periodAmount}</span>
+                                <span class="text-sm font-bold text-slate-400">円</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full inline-block mt-1 border border-slate-100">お手伝い ${data.periodCount} 回</p>
+                        </div>
+                        
+                        ${progressHtml}
                     </div>
-                `).join('');
+                `}).join('');
             }
 
-            // --- 棒グラフ（お小遣い額比較）---
+            // --- Chart.js ---
+            Chart.defaults.font.family = "'Inter', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif";
+            Chart.defaults.color = '#64748b';
+
             const barCtx = document.getElementById('barChart').getContext('2d');
             if(barChartInstance) barChartInstance.destroy();
-
             const chartMembers = Object.values(summaryData);
             barChartInstance = new Chart(barCtx, {
                 type: 'bar',
                 data: {
                     labels: chartMembers.map(m => m.name),
                     datasets: [{
-                        label: '獲得金額（円）',
-                        data: chartMembers.map(m => m.totalAmount),
+                        label: '獲得金額',
+                        data: chartMembers.map(m => m.periodAmount),
                         backgroundColor: chartMembers.map(m => m.color),
-                        borderRadius: 4
+                        borderRadius: 6,
+                        borderSkipped: false
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true } }
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#1e293b', padding: 12, callbacks: { label: function(context) { return context.parsed.y + ' 円'; } } }
+                    },
+                    scales: { 
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9', drawBorder: false } },
+                        x: { grid: { display: false, drawBorder: false }, ticks: { font: { weight: 'bold' } } }
+                    }
                 }
             });
 
-            // --- 円グラフ（お手伝い内訳）---
             const pieCtx = document.getElementById('pieChart').getContext('2d');
             if(pieChartInstance) pieChartInstance.destroy();
-
             const pieLabels = Object.keys(choreCounts);
             const pieData = Object.values(choreCounts);
 
@@ -653,46 +1040,34 @@ service cloud.firestore {
                     type: 'doughnut',
                     data: {
                         labels: pieLabels,
-                        datasets: [{
-                            data: pieData,
-                            backgroundColor: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'],
-                            borderWidth: 1
-                        }]
+                        datasets: [{ data: pieData, backgroundColor: THEME_COLORS, borderWidth: 2, borderColor: '#ffffff' }]
                     },
                     options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } }
+                        responsive: true, maintainAspectRatio: false, cutout: '65%',
+                        plugins: { legend: { position: 'right', labels: { usePointStyle: true, font: { size: 11 } } } }
                     }
                 });
             } else {
                  pieChartInstance = new Chart(pieCtx, {
                     type: 'doughnut',
-                    data: {
-                        labels: ['データなし'],
-                        datasets: [{ data: [1], backgroundColor: ['#e5e7eb'] }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip:{enabled:false} } }
+                    data: { labels: ['データなし'], datasets: [{ data: [1], backgroundColor: ['#f1f5f9'], borderWidth: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, tooltip:{enabled:false} } }
                 });
             }
         }
 
-        // === Gemini API 関連処理 ===
-        async function fetchWithRetry(url, options, maxRetries = 3) {
+        // ==========================================
+        // ★ Gemini API (AI連携)
+        // ==========================================
+        async function fetchWithRetry(url, options, maxRetries = 5) {
             let delay = 1000;
             for (let i = 0; i < maxRetries; i++) {
                 try {
                     const response = await fetch(url, options);
-                    if (!response.ok) {
-                        const errText = await response.text();
-                        throw new Error(`HTTP ${response.status}: ${errText}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
                     return await response.json();
                 } catch (error) {
-                    // 404や403などのエラーはリトライしても解決しないため即座にエラーを投げる
-                    if (error.message.includes('HTTP 404') || error.message.includes('HTTP 400') || error.message.includes('HTTP 403')) {
-                        throw error;
-                    }
+                    if (error.message.includes('HTTP 404') || error.message.includes('HTTP 400') || error.message.includes('HTTP 403')) throw error;
                     if (i === maxRetries - 1) throw error;
                     await new Promise(resolve => setTimeout(resolve, delay));
                     delay *= 2;
@@ -701,72 +1076,37 @@ service cloud.firestore {
         }
 
         async function callGeminiAPI(prompt, schema = null) {
-            const isPreview = window.location.hostname.includes('usercontent.goog') || window.location.hostname.includes('localhost');
-            const GEMINI_API_KEY = isPreview ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
-            
-            // ★最強の解決策：利用可能なモデルを見つけるまで順番に試す「フォールバック機能」
-            const modelsToTry = isPreview 
-                ? ["gemini-2.5-flash-preview-09-2025"] 
-                : [
-                    "gemini-1.5-flash-latest", // 最新の標準モデル
-                    "gemini-pro",              // 古いAPIキーでも確実に入っていることが多いモデル
-                    "gemini-1.5-flash",        // 短縮名のモデル
-                    "gemini-1.0-pro"           // 念のための予備
-                  ];
-
-            let lastError = null;
-
-            // リストの上のモデルから順番に通信テストを行う
-            for (const modelName of modelsToTry) {
-                try {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-                    const payload = {
-                        contents: [{ parts: [{ text: prompt }] }]
-                    };
-                    
-                    if (schema) {
-                        payload.generationConfig = {
-                            responseMimeType: "application/json",
-                            responseSchema: schema
-                        };
-                    }
-
-                    const options = {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    };
-
-                    const data = await fetchWithRetry(url, options);
-                    // 通信成功！
-                    return data.candidates[0].content.parts[0].text;
-                    
-                } catch (error) {
-                    console.warn(`モデル ${modelName} のテストをスキップしました:`, error.message);
-                    lastError = error;
-                    
-                    // 「404 モデルが見つからない」というエラーの場合だけ、次のモデルのテストへ進む
-                    if (!error.message.includes('HTTP 404')) {
-                        throw error; // 403（キーが無効）などの場合は即座にエラーとして終了
-                    }
-                }
-            }
-            
-            throw new Error("利用可能なAIモデルがありませんでした。詳細: " + (lastError ? lastError.message : "不明なエラー"));
+            const apiKey = "";
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            if (schema) payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
+            return (await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })).candidates[0].content.parts[0].text;
         }
 
-        // AIほめ言葉の生成
         window.generatePraise = async function() {
             const btn = document.getElementById('btnGeneratePraise');
             const resultDiv = document.getElementById('praiseResult');
-            
-            const year = viewMonth.getFullYear();
-            const month = viewMonth.getMonth() + 1;
-            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-            const currentRecords = records.filter(r => r.date.startsWith(monthStr));
+            const approvedRecords = records.filter(r => r.status !== 'pending');
+            let targetRecords = [];
+            let periodText = "";
 
-            if(currentRecords.length === 0 || members.length === 0) {
-                resultDiv.innerHTML = '<span class="text-orange-600">記録が見つかりません。お手伝いを記録してから試してみてね！</span>';
+            if (periodMode === 'month') {
+                const year = viewMonth.getFullYear();
+                const month = viewMonth.getMonth() + 1;
+                targetRecords = approvedRecords.filter(r => r.date.startsWith(`${year}-${String(month).padStart(2, '0')}`));
+                periodText = `今月（${month}月）`;
+            } else if (periodMode === 'all') {
+                targetRecords = approvedRecords;
+                periodText = "これまでの全期間";
+            } else if (periodMode === 'custom') {
+                targetRecords = approvedRecords;
+                if (customStartDate) targetRecords = targetRecords.filter(r => r.date >= customStartDate);
+                if (customEndDate) targetRecords = targetRecords.filter(r => r.date <= customEndDate);
+                periodText = "指定された期間";
+            }
+
+            if(targetRecords.length === 0 || members.length === 0) {
+                resultDiv.innerHTML = '<span class="text-rose-500 font-bold"><i class="fas fa-exclamation-circle mr-1"></i>対象期間に承認された記録が見つかりません。お手伝いを記録し、親が「承認」してから試してみてね！</span>';
                 resultDiv.classList.remove('hidden');
                 return;
             }
@@ -777,45 +1117,45 @@ service cloud.firestore {
 
             let summaryText = "";
             members.forEach(m => {
-                const memberRecords = currentRecords.filter(r => r.memberId === m.id);
+                const memberRecords = targetRecords.filter(r => r.memberId === m.id);
                 const total = memberRecords.reduce((sum, r) => sum + r.price, 0);
-                summaryText += `${m.name}さん: ${memberRecords.length}回のお手伝いをしました。獲得したお小遣い合計は${total}円です。\n`;
+                // 称号情報もAIに渡す
+                const totalAllTime = approvedRecords.filter(r => r.memberId === m.id).reduce((sum, r) => sum + r.price, 0);
+                const levelObj = getLevelInfo(totalAllTime);
+                summaryText += `${m.name}さん(現在の称号:${levelObj.title}): ${memberRecords.length}回のお手伝いをしました。獲得したお小遣い合計は${total}円です。\n`;
             });
 
             const prompt = `あなたは子供を褒めて伸ばす優しい妖精のキャラクターです。
-以下の今月（${month}月）のお手伝い記録を見て、子供たちをめちゃくちゃ褒めるメッセージを作成してください。
-子供たちが「来月も頑張ろう！」と思えるような、明るく楽しいトーンでお願いします。絵文字もたくさん使ってください。
+以下の${periodText}のお手伝い記録を見て、子供たちをめちゃくちゃ褒めるメッセージを作成してください。
+子供たちが「これからも頑張ろう！」と思えるような、明るく楽しいトーンでお願いします。絵文字もたくさん使ってください。
 
-【今月の記録】
+【${periodText}の記録】
 ${summaryText}
 
 条件：
 ・メッセージは200文字程度に収めてください。
-・子供たち全員の名前を呼んで、直接語りかけるように書いてください。`;
+・子供たち全員の名前と、もし称号が上がっていればその称号に触れて、直接語りかけるように書いてください。`;
 
             try {
                 const text = await callGeminiAPI(prompt);
-                resultDiv.textContent = text;
+                resultDiv.innerHTML = `<span class="text-amber-900 leading-relaxed">${text.replace(/\n/g, '<br>')}</span>`;
                 resultDiv.classList.remove('hidden');
             } catch (error) {
-                console.error("Gemini API Error:", error);
-                resultDiv.innerHTML = `<span class="text-red-500">メッセージの生成に失敗しました。<br><span class="text-xs text-gray-500">${error.message}</span></span>`;
+                resultDiv.innerHTML = `<span class="text-rose-500">生成に失敗しました。<br><span class="text-xs text-rose-400 font-normal mt-1 block">${error.message}</span></span>`;
                 resultDiv.classList.remove('hidden');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = 'メッセージを生成する';
+                btn.innerHTML = '<i class="fas fa-magic mr-1"></i> メッセージを生成する';
             }
         };
 
-        // AIアイデアの提案
         window.generateIdeas = async function() {
             const contextInput = document.getElementById('aiIdeaContext').value.trim() || '一般的な年齢';
             const btn = document.getElementById('btnGenerateIdeas');
             const resultDiv = document.getElementById('aiIdeasResult');
-            
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>考え中';
-            resultDiv.innerHTML = '<p class="text-xs text-purple-600 text-center py-2"><i class="fas fa-magic fa-bounce mr-2"></i>AIが一生懸命考えています...</p>';
+            resultDiv.innerHTML = '<p class="text-sm text-rose-500 text-center py-4 font-bold"><i class="fas fa-magic fa-bounce mr-2"></i>AIが一生懸命考えています...</p>';
             resultDiv.classList.remove('hidden');
 
             const prompt = `家事の助けになり、子供の成長にもつながる子供向けのお手伝いのアイデアを3つ提案してください。
@@ -823,33 +1163,36 @@ ${summaryText}
 相場として妥当な「お小遣い単価（円）」も設定してください。`;
 
             const schema = {
-                type: "ARRAY",
-                items: {
-                    type: "OBJECT",
-                    properties: {
-                        name: { type: "STRING", description: "お手伝いの名前（短く簡潔に、例：お風呂掃除）" },
-                        price: { type: "INTEGER", description: "お小遣いの単価の数値（円）" }
-                    },
-                    required: ["name", "price"]
-                }
+                type: "OBJECT",
+                properties: {
+                    ideas: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                name: { type: "STRING", description: "お手伝いの名前" },
+                                price: { type: "INTEGER", description: "単価(円)" }
+                            },
+                            required: ["name", "price"]
+                        }
+                    }
+                }, required: ["ideas"]
             };
 
             try {
-                const jsonText = await callGeminiAPI(prompt, schema);
-                const ideas = JSON.parse(jsonText);
-                
-                resultDiv.innerHTML = ideas.map((idea, index) => `
-                    <div class="flex items-center justify-between bg-white p-2 rounded-lg border border-purple-200 text-sm shadow-sm">
-                        <span class="font-medium text-gray-700 ml-2"><i class="fas fa-star text-yellow-400 mr-2"></i>${idea.name} <span class="text-gray-500 text-xs">(${idea.price}円)</span></span>
-                        <button onclick="addChoreFromAI('${idea.name}', ${idea.price}, this)" class="text-purple-600 hover:text-purple-800 font-bold px-3 py-1.5 rounded bg-purple-100 hover:bg-purple-200 transition-colors">
-                            追加
-                        </button>
+                const ideas = JSON.parse(await callGeminiAPI(prompt, schema)).ideas || [];
+                if (ideas.length === 0) throw new Error("生成結果が空でした。");
+                resultDiv.innerHTML = ideas.map(idea => `
+                    <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow group">
+                        <span class="font-bold text-slate-700 ml-2 flex items-center">
+                            <i class="fas fa-star text-rose-400 mr-2"></i>${idea.name} 
+                            <span class="text-slate-400 font-normal text-xs ml-2 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${idea.price}円</span>
+                        </span>
+                        <button onclick="addChoreFromAI('${idea.name}', ${idea.price}, this)" class="text-rose-500 hover:text-white font-bold px-4 py-2 rounded-lg bg-rose-50 hover:bg-rose-500 transition-all text-sm border border-rose-100 hover:border-transparent">追加</button>
                     </div>
                 `).join('');
-                
             } catch (error) {
-                console.error("Gemini API Error:", error);
-                resultDiv.innerHTML = `<p class="text-xs text-red-500 py-2">アイデアの取得に失敗しました。<br><span class="text-gray-500">${error.message}</span></p>`;
+                resultDiv.innerHTML = `<p class="text-sm text-rose-500 py-3 bg-white rounded-xl border border-rose-100 text-center font-bold">取得失敗。<br><span class="text-xs font-normal text-rose-400 mt-1 block">${error.message}</span></p>`;
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '提案';
@@ -857,23 +1200,20 @@ ${summaryText}
         };
 
         window.addChoreFromAI = async function(name, price, btnElement) {
+            if(!userId) return;
             try {
                 btnElement.disabled = true;
                 btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                await addDoc(collection(db, 'chores'), { name, price });
-                btnElement.innerHTML = '追加済 <i class="fas fa-check"></i>';
-                btnElement.classList.remove('text-purple-600', 'bg-purple-100', 'hover:bg-purple-200');
-                btnElement.classList.add('text-green-600', 'bg-green-100');
+                await addDoc(choresRef, { name, price });
+                btnElement.innerHTML = '追加済 <i class="fas fa-check ml-1"></i>';
+                btnElement.className = "text-emerald-600 font-bold px-3 py-2 rounded-lg bg-emerald-50 text-sm border border-emerald-100";
             } catch (error) {
-                console.error("お手伝い追加エラー", error);
                 btnElement.disabled = false;
                 btnElement.innerHTML = 'エラー';
             }
         };
 
-        // 起動処理
         initFirebase();
-
     </script>
 </body>
 </html>
