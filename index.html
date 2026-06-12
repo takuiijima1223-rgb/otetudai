@@ -151,7 +151,7 @@
             <h1 class="text-2xl font-bold flex items-center justify-center gap-2 drop-shadow">
                 <i class="fas fa-piggy-bank"></i>
                 お手伝い＆お小遣い管理 
-                <span class="text-xs font-medium bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/30 ml-2 shadow-inner">Canvas</span>
+                <span id="envBadge" class="text-xs font-medium bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/30 ml-2 shadow-inner">Web</span>
             </h1>
         </header>
 
@@ -194,7 +194,6 @@
                             <div>
                                 <div class="flex justify-between items-end mb-1.5">
                                     <label class="block text-sm font-medium text-slate-600">なにをした？</label>
-                                    <!-- ★ドキドキルーレットボタンを追加 -->
                                     <button type="button" onclick="openRoulette()" class="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors flex items-center border border-amber-200">
                                         <i class="fas fa-dice mr-1"></i> ルーレットで決める
                                     </button>
@@ -253,7 +252,7 @@
                     </div>
                 </div>
 
-                <!-- ★メンバー別サマリー＆目標＆称号カード -->
+                <!-- メンバー別サマリー＆目標＆称号カード -->
                 <div id="summaryCards" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- JSで追加 -->
                 </div>
@@ -413,25 +412,40 @@
         }
 
         // ==========================================
-        // ★ Firebaseの設定
+        // ★ Firebaseの設定 (Canvas / GitHub 両対応)
         // ==========================================
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        // Canvas環境かどうかを判定
+        const isCanvas = typeof __firebase_config !== 'undefined';
+        
+        // GitHub等で動かす場合は、一番最初のコードにあったお客様のFirebase設定を使います
+        const firebaseConfig = isCanvas ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyC6heY5H4KyuyUSb7j8Qc3IeZlEZ-uka9A",
+            authDomain: "otetudai-19bd2.firebaseapp.com",
+            projectId: "otetudai-19bd2",
+            storageBucket: "otetudai-19bd2.firebasestorage.app",
+            messagingSenderId: "799488769460",
+            appId: "1:799488769460:web:4a3d1d1a1729063beb06e1"
+        };
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         let db, auth, userId;
+        // コレクションへの参照を保持する変数
         let membersRef, choresRef, recordsRef;
 
         const initFirebase = async () => {
-            if (!firebaseConfig) {
-                setTimeout(() => finishLoading(), 1500);
-                return;
+            if (!isCanvas) {
+                document.getElementById('envBadge').textContent = 'GitHub';
+            } else {
+                document.getElementById('envBadge').textContent = 'Canvas';
             }
+
             try {
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                // 認証（Canvasの場合は専用トークン、GitHub等の場合は匿名ログイン）
+                if (isCanvas && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
@@ -440,9 +454,20 @@
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
-                        membersRef = collection(db, 'artifacts', appId, 'users', userId, 'members');
-                        choresRef = collection(db, 'artifacts', appId, 'users', userId, 'chores');
-                        recordsRef = collection(db, 'artifacts', appId, 'users', userId, 'records');
+                        
+                        // ★重要：データの保存先パスを環境によって切り替えます
+                        if (isCanvas) {
+                            // Canvas専用の保存パス
+                            membersRef = collection(db, 'artifacts', appId, 'users', userId, 'members');
+                            choresRef = collection(db, 'artifacts', appId, 'users', userId, 'chores');
+                            recordsRef = collection(db, 'artifacts', appId, 'users', userId, 'records');
+                        } else {
+                            // GitHub等（外部環境）では家族で共有するため、データベースのルート（一番上）に保存します
+                            membersRef = collection(db, 'members');
+                            choresRef = collection(db, 'chores');
+                            recordsRef = collection(db, 'records');
+                        }
+                        
                         setupRealtimeListeners();
                     }
                 });
@@ -478,16 +503,20 @@
                     updateAllUI();
                 }
             };
+            
+            // データの監視（上で設定した membersRef などを使用します）
             onSnapshot(membersRef, (snapshot) => {
                 members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
             }, handleFirestoreError);
+            
             onSnapshot(choresRef, (snapshot) => {
                 chores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateAllUI();
                 if(loadedCount < 3) checkReady();
             }, handleFirestoreError);
+            
             onSnapshot(recordsRef, (snapshot) => {
                 records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 records.sort((a, b) => {
@@ -551,7 +580,7 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 回っています...';
             
             let counter = 0;
-            const maxTicks = 20; // ルーレットが回る回数
+            const maxTicks = 20; 
             
             rouletteInterval = setInterval(() => {
                 const randomChore = chores[Math.floor(Math.random() * chores.length)];
@@ -562,19 +591,12 @@
                 counter++;
                 if (counter >= maxTicks) {
                     clearInterval(rouletteInterval);
-                    
-                    // 結果の決定
                     const finalChore = chores[Math.floor(Math.random() * chores.length)];
                     textEl.innerHTML = `<span class="text-3xl text-rose-500 animate-pop-in block"><i class="fas fa-star text-amber-400 mr-2"></i>${finalChore.name}！</span>`;
                     textEl.style.transform = "scale(1)";
-                    
-                    // セレクトボックスに自動入力
                     document.getElementById('recordChore').value = finalChore.id;
-                    
                     btn.innerHTML = '<i class="fas fa-check mr-2"></i> 決定！';
-                    setTimeout(() => {
-                        closeRoulette();
-                    }, 1500);
+                    setTimeout(() => { closeRoulette(); }, 1500);
                 }
             }, 100);
         };
@@ -592,6 +614,7 @@
             if(!chore || !memberId || !userId) return;
 
             try {
+                // 上で設定した recordsRef を使って保存します
                 await addDoc(recordsRef, {
                     date: date,
                     memberId: memberId,
@@ -612,9 +635,8 @@
         window.approveRecord = async function(id) {
             if(!userId) return;
             try {
-                await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'records', id), {
-                    status: 'approved'
-                });
+                // doc() 関数で recordsRef を指定することで、環境に応じたパスが自動的に使われます
+                await updateDoc(doc(recordsRef, id), { status: 'approved' });
             } catch (error) {
                 console.error("承認エラー", error);
                 document.getElementById('permissionErrorBanner').classList.remove('hidden');
@@ -624,7 +646,7 @@
         window.deleteRecord = async function(id) {
             if(!userId) return;
             try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'records', id));
+                await deleteDoc(doc(recordsRef, id));
             } catch (error) {
                 console.error("削除エラー", error);
                 document.getElementById('permissionErrorBanner').classList.remove('hidden');
@@ -707,13 +729,12 @@
         window.deleteMember = async function(id) {
             if(!userId) return;
             try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'members', id));
+                await deleteDoc(doc(membersRef, id));
             } catch (error) {
                 console.error("メンバー削除エラー", error);
             }
         };
 
-        // 目標モーダルの開閉と保存
         window.openGoalModal = function(memberId) {
             const member = members.find(m => m.id === memberId);
             if (!member) return;
@@ -735,7 +756,7 @@
 
             if (!id || !userId) return;
             try {
-                await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'members', id), {
+                await updateDoc(doc(membersRef, id), {
                     goalName: goalName,
                     goalAmount: goalAmount
                 });
@@ -792,7 +813,7 @@
 
         window.deleteChore = async function(id) {
             if(!userId) return;
-            try { await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'chores', id)); } catch (error) { console.error(error); }
+            try { await deleteDoc(doc(choresRef, id)); } catch (error) { console.error(error); }
         };
 
         window.editChore = function(id) { editingChoreId = id; renderChoresList(); };
@@ -834,7 +855,7 @@
                 const btn = document.getElementById(`saveChoreBtn_${id}`);
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                 btn.disabled = true;
-                await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'chores', id), { name: name, price: price });
+                await updateDoc(doc(choresRef, id), { name: name, price: price });
                 editingChoreId = null;
             } catch (error) { console.error(error); }
         };
@@ -878,7 +899,7 @@
         }
 
         // ==========================================
-        // ★ ダッシュボード描画（目標・称号・グラフ）
+        // ★ ダッシュボード描画
         // ==========================================
         function renderDashboard() {
             const approvedRecords = records.filter(r => r.status !== 'pending');
@@ -898,26 +919,16 @@
                 if (customEndDate) currentRecords = currentRecords.filter(r => r.date <= customEndDate);
             }
 
-            // サマリー計算用データ構造
             const summaryData = {};
             members.forEach(m => {
-                // そのメンバーの全期間の累計額（称号と目標計算用）
                 const totalAllTime = approvedRecords.filter(r => r.memberId === m.id).reduce((sum, r) => sum + r.price, 0);
-                
                 summaryData[m.id] = { 
-                    name: m.name, 
-                    color: m.color, 
-                    periodAmount: 0, // 選択期間の合計
-                    periodCount: 0,
-                    totalAllTime: totalAllTime, // 全期間の合計
-                    goalName: m.goalName,
-                    goalAmount: m.goalAmount
+                    name: m.name, color: m.color, periodAmount: 0, periodCount: 0,
+                    totalAllTime: totalAllTime, goalName: m.goalName, goalAmount: m.goalAmount
                 };
             });
 
             const choreCounts = {};
-
-            // 選択期間の集計
             currentRecords.forEach(r => {
                 if(summaryData[r.memberId]) {
                     summaryData[r.memberId].periodAmount += r.price;
@@ -926,15 +937,12 @@
                 choreCounts[r.choreName] = (choreCounts[r.choreName] || 0) + 1;
             });
 
-            // ★サマリーカード（リッチ版）の描画
             const cardsContainer = document.getElementById('summaryCards');
             if(members.length === 0) {
                 cardsContainer.innerHTML = '<div class="col-span-1 md:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 text-center text-slate-400 shadow-sm">設定タブからメンバーを登録してください</div>';
             } else {
                 cardsContainer.innerHTML = Object.values(summaryData).map(data => {
                     const levelObj = getLevelInfo(data.totalAllTime);
-                    
-                    // プログレスバーのHTML生成
                     let progressHtml = '';
                     if (data.goalName && data.goalAmount > 0) {
                         const percent = Math.min(100, Math.floor((data.totalAllTime / data.goalAmount) * 100));
@@ -964,9 +972,7 @@
 
                     return `
                     <div class="bg-white p-5 rounded-2xl border ${levelObj.border} shadow-sm flex flex-col items-center hover:shadow-md transition-shadow relative overflow-hidden">
-                        <!-- 背景装飾 -->
                         <div class="absolute -right-4 -top-4 w-24 h-24 ${levelObj.bg} rounded-full opacity-50"></div>
-                        
                         <div class="flex w-full justify-between items-start mb-2 relative z-10">
                             <div class="flex items-center gap-3">
                                 <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-inner text-xl" style="background-color: ${data.color}">
@@ -977,13 +983,11 @@
                                     <p class="text-[10px] text-slate-400">Lv.${levelObj.level}</p>
                                 </div>
                             </div>
-                            <!-- 称号バッジ -->
                             <div class="flex items-center gap-1 ${levelObj.bg} px-2.5 py-1 rounded-lg border ${levelObj.border}">
                                 <i class="fas ${levelObj.icon} ${levelObj.color} text-sm"></i>
                                 <span class="text-xs font-bold ${levelObj.color}">${levelObj.title}</span>
                             </div>
                         </div>
-
                         <div class="w-full text-center mt-2 relative z-10">
                             <p class="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-1">選択期間の獲得額</p>
                             <div class="flex justify-center items-baseline gap-1">
@@ -992,13 +996,11 @@
                             </div>
                             <p class="text-[10px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full inline-block mt-1 border border-slate-100">お手伝い ${data.periodCount} 回</p>
                         </div>
-                        
                         ${progressHtml}
                     </div>
                 `}).join('');
             }
 
-            // --- Chart.js ---
             Chart.defaults.font.family = "'Inter', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif";
             Chart.defaults.color = '#64748b';
 
@@ -1019,14 +1021,8 @@
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { 
-                        legend: { display: false },
-                        tooltip: { backgroundColor: '#1e293b', padding: 12, callbacks: { label: function(context) { return context.parsed.y + ' 円'; } } }
-                    },
-                    scales: { 
-                        y: { beginAtZero: true, grid: { color: '#f1f5f9', drawBorder: false } },
-                        x: { grid: { display: false, drawBorder: false }, ticks: { font: { weight: 'bold' } } }
-                    }
+                    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 12, callbacks: { label: function(context) { return context.parsed.y + ' 円'; } } } },
+                    scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9', drawBorder: false } }, x: { grid: { display: false, drawBorder: false }, ticks: { font: { weight: 'bold' } } } }
                 }
             });
 
@@ -1038,14 +1034,8 @@
             if (pieLabels.length > 0) {
                 pieChartInstance = new Chart(pieCtx, {
                     type: 'doughnut',
-                    data: {
-                        labels: pieLabels,
-                        datasets: [{ data: pieData, backgroundColor: THEME_COLORS, borderWidth: 2, borderColor: '#ffffff' }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false, cutout: '65%',
-                        plugins: { legend: { position: 'right', labels: { usePointStyle: true, font: { size: 11 } } } }
-                    }
+                    data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: THEME_COLORS, borderWidth: 2, borderColor: '#ffffff' }] },
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'right', labels: { usePointStyle: true, font: { size: 11 } } } } }
                 });
             } else {
                  pieChartInstance = new Chart(pieCtx, {
@@ -1057,7 +1047,7 @@
         }
 
         // ==========================================
-        // ★ Gemini API (AI連携)
+        // ★ Gemini API (AI連携 - Canvas/GitHub両対応)
         // ==========================================
         async function fetchWithRetry(url, options, maxRetries = 5) {
             let delay = 1000;
@@ -1076,11 +1066,16 @@
         }
 
         async function callGeminiAPI(prompt, schema = null) {
-            const apiKey = "";
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            // 外部環境では提供されたAPIキーを使用し、より安定したモデルを指定します
+            const apiKey = isCanvas ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
+            const modelName = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
             if (schema) payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
-            return (await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })).candidates[0].content.parts[0].text;
+            
+            const result = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            return result.candidates[0].content.parts[0].text;
         }
 
         window.generatePraise = async function() {
@@ -1119,7 +1114,6 @@
             members.forEach(m => {
                 const memberRecords = targetRecords.filter(r => r.memberId === m.id);
                 const total = memberRecords.reduce((sum, r) => sum + r.price, 0);
-                // 称号情報もAIに渡す
                 const totalAllTime = approvedRecords.filter(r => r.memberId === m.id).reduce((sum, r) => sum + r.price, 0);
                 const levelObj = getLevelInfo(totalAllTime);
                 summaryText += `${m.name}さん(現在の称号:${levelObj.title}): ${memberRecords.length}回のお手伝いをしました。獲得したお小遣い合計は${total}円です。\n`;
