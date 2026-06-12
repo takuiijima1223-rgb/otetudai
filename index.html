@@ -147,11 +147,10 @@
     <!-- メインコンテンツ -->
     <div class="max-w-5xl mx-auto bg-white shadow-2xl min-h-screen flex flex-col relative app-container">
         <!-- Header -->
-        <header class="bg-gradient-to-r from-teal-500 to-emerald-400 text-white p-5 text-center shadow-md relative z-10">
-            <h1 class="text-2xl font-bold flex items-center justify-center gap-2 drop-shadow">
-                <i class="fas fa-piggy-bank"></i>
-                お手伝い＆お小遣い管理 
-                <span id="envBadge" class="text-xs font-medium bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/30 ml-2 shadow-inner">Web</span>
+        <header class="bg-gradient-to-r from-teal-500 to-emerald-400 text-white p-4 md:p-5 text-center shadow-md relative z-10">
+            <h1 class="text-xl md:text-2xl font-bold flex items-center justify-center gap-2 drop-shadow flex-wrap">
+                <span class="whitespace-nowrap"><i class="fas fa-piggy-bank mr-1"></i>お手伝い＆お小遣い管理</span>
+                <span id="envBadge" class="text-[10px] md:text-xs font-medium bg-white/20 backdrop-blur-sm px-2 py-0.5 md:px-2.5 md:py-1 rounded-full border border-white/30 shadow-inner shrink-0">Web</span>
             </h1>
         </header>
 
@@ -1066,16 +1065,34 @@
         }
 
         async function callGeminiAPI(prompt, schema = null) {
-            // 外部環境では提供されたAPIキーを使用し、より安定したモデルを指定します
             const apiKey = isCanvas ? "" : "AIzaSyDfcWK7KHR1x2uyhkihNhx88irBhmreHe4";
-            const modelName = isCanvas ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash";
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             
-            const payload = { contents: [{ parts: [{ text: prompt }] }] };
-            if (schema) payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
+            // 外部環境では、利用可能なモデルが見つかるまで自動で順番に試すフォールバック機能を実装
+            const modelsToTry = isCanvas 
+                ? ["gemini-2.5-flash-preview-09-2025"] 
+                : ["gemini-1.5-flash-latest", "gemini-pro", "gemini-1.5-flash", "gemini-1.0-pro"];
             
-            const result = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            return result.candidates[0].content.parts[0].text;
+            let lastError = null;
+
+            for (const modelName of modelsToTry) {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+                    const payload = { contents: [{ parts: [{ text: prompt }] }] };
+                    if (schema) payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
+                    
+                    const result = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    return result.candidates[0].content.parts[0].text;
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`[Gemini API] モデル ${modelName} をスキップしました:`, error.message);
+                    // 404(モデルが見つからない)以外のエラー(例: 403 APIキー無効)の場合は、即座にエラーとして処理を終了
+                    if (!error.message.includes('HTTP 404')) {
+                        throw error;
+                    }
+                }
+            }
+            
+            throw new Error(`AIモデルへの接続に失敗しました。詳細: ${lastError ? lastError.message : '不明なエラー'}`);
         }
 
         window.generatePraise = async function() {
